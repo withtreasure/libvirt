@@ -236,6 +236,7 @@ VIR_ENUM_IMPL(virQEMUCaps, QEMU_CAPS_LAST,
               "device-del-event",
 
               "x-rdma", /* 152 */
+              "mc", /* 153 */
     );
 
 struct _virQEMUCaps {
@@ -2439,6 +2440,10 @@ virQEMUCapsInitArchQMPBasic(virQEMUCapsPtr qemuCaps,
 
     if (qemuCaps->version >= MIN_X_RDMA_VERSION) {
         virQEMUCapsSet(qemuCaps, QEMU_CAPS_MIGRATE_QEMU_X_RDMA);
+    }
+
+    if (qemuCaps->version >= MIN_MC_VERSION) {
+        virQEMUCapsSet(qemuCaps, QEMU_CAPS_MIGRATE_QEMU_MC);
     }
 
     if (!(archstr = qemuMonitorGetTargetArch(mon)))

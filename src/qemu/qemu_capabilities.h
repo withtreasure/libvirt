@@ -192,11 +192,13 @@ enum virQEMUCapsFlags {
     QEMU_CAPS_DEVICE_DEL_EVENT   = 151, /* DEVICE_DELETED event */
 
     QEMU_CAPS_MIGRATE_QEMU_X_RDMA  = 152, /* have qemu x-rdma migration */
+    QEMU_CAPS_MIGRATE_QEMU_MC    = 153, /* have qemu micro-checkpointing */
 
     QEMU_CAPS_LAST,                   /* this must always be the last item */
 };
 
 #define MIN_X_RDMA_VERSION 1005000
+#define MIN_MC_VERSION 1005000
 
 typedef struct _virQEMUCaps virQEMUCaps;
 typedef virQEMUCaps *virQEMUCapsPtr;

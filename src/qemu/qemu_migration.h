@@ -27,20 +27,22 @@
 
 /* All supported qemu migration flags.  */
 # define QEMU_MIGRATION_FLAGS                   \
-    (VIR_MIGRATE_LIVE |                         \
-     VIR_MIGRATE_PEER2PEER |                    \
-     VIR_MIGRATE_TUNNELLED |                    \
-     VIR_MIGRATE_PERSIST_DEST |                 \
-     VIR_MIGRATE_UNDEFINE_SOURCE |              \
-     VIR_MIGRATE_PAUSED |                       \
-     VIR_MIGRATE_NON_SHARED_DISK |              \
-     VIR_MIGRATE_NON_SHARED_INC |               \
-     VIR_MIGRATE_CHANGE_PROTECTION |            \
-     VIR_MIGRATE_UNSAFE |                       \
-     VIR_MIGRATE_OFFLINE |                      \
-     VIR_MIGRATE_COMPRESSED |                   \
-     VIR_MIGRATE_ABORT_ON_ERROR |               \
-     VIR_MIGRATE_X_RDMA_PIN_ALL)
+    (  VIR_MIGRATE_LIVE                         \
+     | VIR_MIGRATE_PEER2PEER                    \
+     | VIR_MIGRATE_TUNNELLED                    \
+     | VIR_MIGRATE_PERSIST_DEST                 \
+     | VIR_MIGRATE_UNDEFINE_SOURCE              \
+     | VIR_MIGRATE_PAUSED                       \
+     | VIR_MIGRATE_NON_SHARED_DISK              \
+     | VIR_MIGRATE_NON_SHARED_INC               \
+     | VIR_MIGRATE_CHANGE_PROTECTION            \
+     | VIR_MIGRATE_UNSAFE                       \
+     | VIR_MIGRATE_OFFLINE                      \
+     | VIR_MIGRATE_COMPRESSED                   \
+     | VIR_MIGRATE_ABORT_ON_ERROR               \
+     | VIR_MIGRATE_X_RDMA_PIN_ALL               \
+     | VIR_MIGRATE_MC                           \
+     )
 
 /* All supported migration parameters and their types. */
 # define QEMU_MIGRATION_PARAMETERS                              \

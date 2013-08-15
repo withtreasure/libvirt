@@ -1614,6 +1614,46 @@ cleanup:
 }
 
 static int
+qemuMigrationSetMC(virQEMUDriverPtr driver,
+                            virDomainObjPtr vm,
+                            enum qemuDomainAsyncJob job)
+{
+    qemuDomainObjPrivatePtr priv = vm->privateData;
+    int ret;
+
+    if (qemuDomainObjEnterMonitorAsync(driver, vm, job) < 0)
+        return -1;
+
+    ret = qemuMonitorGetMigrationCapability(
+                priv->mon,
+                QEMU_MONITOR_MIGRATION_CAPS_MC);
+
+    if (ret < 0) {
+        goto cleanup;
+    } else if (ret == 0) {
+        if (job == QEMU_ASYNC_JOB_MIGRATION_IN) {
+            virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s",
+                           _("micro checkpointing is not supported by "
+                             "target QEMU binary"));
+        } else {
+            virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s",
+                           _("micro checkpointing is not supported by "
+                             "source QEMU binary"));
+        }
+        ret = -1;
+        goto cleanup;
+    }
+
+    ret = qemuMonitorSetMigrationCapability(
+                priv->mon,
+                QEMU_MONITOR_MIGRATION_CAPS_MC);
+
+cleanup:
+    qemuDomainObjExitMonitor(driver, vm);
+    return ret;
+}
+
+static int
 qemuMigrationWaitForSpice(virQEMUDriverPtr driver,
                           virDomainObjPtr vm)
 {
@@ -2318,10 +2358,18 @@ qemuMigrationPrepareAny(virQEMUDriverPtr driver,
             goto cleanup;
 
         /* Listen on :: instead of 0.0.0.0 if QEMU understands it
-         * and there is at least one IPv6 address configured
+         * and there is at least one IPv6 address configured.
+         *
+         * Unfortunately, IPv6 support for RDMA is broken in Linux today.
+         * More specifically: it is only broken for _ethernet_ based RDMA
+         * devices (RoCE 'rdma over converged ethernet') / iWARP.
+         *
+         * It works fine for infiniband-based RDMA devices, but there's
+         * no simple way to know in advance because the user may potentially
+         * have multiple types of hardware in the system.
          */
         if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_IPV6_MIGRATION) &&
-            getaddrinfo("::", NULL, &hints, &info) == 0) {
+            (getaddrinfo("::", NULL, &hints, &info) == 0)) {
             freeaddrinfo(info);
             listenAddr = "[::]";
         } else {
@@ -2404,6 +2452,11 @@ qemuMigrationPrepareAny(virQEMUDriverPtr driver,
 
     if (flags & VIR_MIGRATE_X_RDMA_PIN_ALL &&
         qemuMigrationSetPinAll(driver, vm,
+                                    QEMU_ASYNC_JOB_MIGRATION_IN) < 0)
+        goto stop;
+
+    if (flags & VIR_MIGRATE_MC &&
+        qemuMigrationSetMC(driver, vm,
                                     QEMU_ASYNC_JOB_MIGRATION_IN) < 0)
         goto stop;
 
@@ -3196,6 +3249,11 @@ qemuMigrationRun(virQEMUDriverPtr driver,
 
     if (flags & VIR_MIGRATE_X_RDMA_PIN_ALL &&
         qemuMigrationSetPinAll(driver, vm,
+                                    QEMU_ASYNC_JOB_MIGRATION_OUT) < 0)
+        goto cleanup;
+
+    if (flags & VIR_MIGRATE_MC &&
+        qemuMigrationSetMC(driver, vm,
                                     QEMU_ASYNC_JOB_MIGRATION_OUT) < 0)
         goto cleanup;
 
