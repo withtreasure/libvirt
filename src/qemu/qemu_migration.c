@@ -1732,6 +1732,7 @@ qemuMigrationUpdateJobStatus(virQEMUDriverPtr driver,
         break;
 
     case QEMU_MONITOR_MIGRATION_STATUS_ACTIVE:
+    case QEMU_MONITOR_MIGRATION_STATUS_CHECKPOINTING:
         priv->job.info.fileTotal = priv->job.status.disk_total;
         priv->job.info.fileRemaining = priv->job.status.disk_remaining;
         priv->job.info.fileProcessed = priv->job.status.disk_transferred;
