@@ -235,8 +235,16 @@ VIR_ENUM_IMPL(virQEMUCaps, QEMU_CAPS_LAST,
               "vnc-share-policy", /* 150 */
               "device-del-event",
 
-              "x-rdma", /* 152 */
-              "mc", /* 153 */
+              "dmi-to-pci-bridge",
+              "i440fx-pci-hole64-size",
+              "q35-pci-hole64-size",
+
+              "usb-storage", /* 155 */
+              "usb-storage.removable",
+              "virtio-mmio",
+
+              "x-rdma", /* 158 */
+              "mc", /* 159 */
     );
 
 struct _virQEMUCaps {
@@ -1388,6 +1396,9 @@ struct virQEMUCapsStringFlags virQEMUCapsObjectTypes[] = {
     { "pci-bridge", QEMU_CAPS_DEVICE_PCI_BRIDGE },
     { "vfio-pci", QEMU_CAPS_DEVICE_VFIO_PCI },
     { "scsi-generic", QEMU_CAPS_DEVICE_SCSI_GENERIC },
+    { "i82801b11-bridge", QEMU_CAPS_DEVICE_DMI_TO_PCI_BRIDGE },
+    { "usb-storage", QEMU_CAPS_DEVICE_USB_STORAGE },
+    { "virtio-mmio", QEMU_CAPS_DEVICE_VIRTIO_MMIO },
 };
 
 static struct virQEMUCapsStringFlags virQEMUCapsObjectPropsVirtioBlk[] = {
@@ -1441,6 +1452,18 @@ static struct virQEMUCapsStringFlags virQEMUCapsObjectPropsScsiGeneric[] = {
     { "bootindex", QEMU_CAPS_DEVICE_SCSI_GENERIC_BOOTINDEX },
 };
 
+static struct virQEMUCapsStringFlags virQEMUCapsObjectPropsI440FXPciHost[] = {
+    { "pci-hole64-size", QEMU_CAPS_I440FX_PCI_HOLE64_SIZE },
+};
+
+static struct virQEMUCapsStringFlags virQEMUCapsObjectPropsQ35PciHost[] = {
+    { "pci-hole64-size", QEMU_CAPS_Q35_PCI_HOLE64_SIZE },
+};
+
+static struct virQEMUCapsStringFlags virQEMUCapsObjectPropsUsbStorage[] = {
+    { "removable", QEMU_CAPS_USB_STORAGE_REMOVABLE },
+};
+
 struct virQEMUCapsObjectTypeProps {
     const char *type;
     struct virQEMUCapsStringFlags *props;
@@ -1478,6 +1501,12 @@ static struct virQEMUCapsObjectTypeProps virQEMUCapsObjectProps[] = {
       ARRAY_CARDINALITY(virQEMUCapsObjectPropsUsbHost) },
     { "scsi-generic", virQEMUCapsObjectPropsScsiGeneric,
       ARRAY_CARDINALITY(virQEMUCapsObjectPropsScsiGeneric) },
+    { "i440FX-pcihost", virQEMUCapsObjectPropsI440FXPciHost,
+      ARRAY_CARDINALITY(virQEMUCapsObjectPropsI440FXPciHost) },
+    { "q35-pcihost", virQEMUCapsObjectPropsQ35PciHost,
+      ARRAY_CARDINALITY(virQEMUCapsObjectPropsQ35PciHost) },
+    { "usb-storage", virQEMUCapsObjectPropsUsbStorage,
+      ARRAY_CARDINALITY(virQEMUCapsObjectPropsUsbStorage) },
 };
 
 
@@ -1668,6 +1697,7 @@ virQEMUCapsExtractDeviceStr(const char *qemu,
                          "-device", "ide-drive,?",
                          "-device", "usb-host,?",
                          "-device", "scsi-generic,?",
+                         "-device", "usb-storage,?",
                          NULL);
     /* qemu -help goes to stdout, but qemu -device ? goes to stderr.  */
     virCommandSetErrorBuffer(cmd, &output);
@@ -2359,7 +2389,8 @@ cleanup:
 
 
 static void virQEMUCapsMonitorNotify(qemuMonitorPtr mon ATTRIBUTE_UNUSED,
-                                     virDomainObjPtr vm ATTRIBUTE_UNUSED)
+                                     virDomainObjPtr vm ATTRIBUTE_UNUSED,
+                                     void *opaque ATTRIBUTE_UNUSED)
 {
 }
 
@@ -2559,7 +2590,7 @@ virQEMUCapsInitQMP(virQEMUCapsPtr qemuCaps,
     memset(&vm, 0, sizeof(vm));
     vm.pid = pid;
 
-    if (!(mon = qemuMonitorOpen(&vm, &config, true, &callbacks))) {
+    if (!(mon = qemuMonitorOpen(&vm, &config, true, &callbacks, NULL))) {
         ret = 0;
         goto cleanup;
     }
@@ -2824,4 +2855,24 @@ bool
 virQEMUCapsUsedQMP(virQEMUCapsPtr qemuCaps)
 {
     return qemuCaps->usedQMP;
+}
+
+bool
+virQEMUCapsSupportsChardev(virDomainDefPtr def,
+                           virQEMUCapsPtr qemuCaps,
+                           virDomainChrDefPtr chr)
+{
+    if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_CHARDEV) ||
+        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE))
+        return false;
+
+    if (def->os.arch != VIR_ARCH_ARMV7L)
+        return true;
+
+    /* This may not be true for all ARM machine types, but at least
+     * the only supported non-virtio serial devices of vexpress and versatile
+     * don't have the -chardev property wired up. */
+    return (chr->info.type == VIR_DOMAIN_DEVICE_ADDRESS_TYPE_VIRTIO_MMIO ||
+            (chr->deviceType == VIR_DOMAIN_CHR_DEVICE_TYPE_CONSOLE &&
+             chr->targetType == VIR_DOMAIN_CHR_CONSOLE_TARGET_TYPE_VIRTIO));
 }

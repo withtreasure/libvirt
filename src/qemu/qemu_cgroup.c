@@ -428,8 +428,8 @@ qemuSetupMemoryCgroup(virDomainObjPtr vm)
         }
     }
 
-    if (virCgroupSetMemoryHardLimit(priv->cgroup,
-                                    qemuDomainMemoryLimit(vm->def)) < 0)
+    if (vm->def->mem.hard_limit != 0 &&
+        virCgroupSetMemoryHardLimit(priv->cgroup, vm->def->mem.hard_limit) < 0)
         return -1;
 
     if (vm->def->mem.soft_limit != 0 &&
@@ -488,7 +488,7 @@ qemuSetupDevicesCgroup(virQEMUDriverPtr driver,
                 defaultDeviceACL;
 
     if (vm->def->nsounds &&
-        (!vm->def->ngraphics ||
+        ((!vm->def->ngraphics && cfg->nogfxAllowHostAudio) ||
          ((vm->def->graphics[0]->type == VIR_DOMAIN_GRAPHICS_TYPE_VNC &&
            cfg->vncAllowHostAudio) ||
            (vm->def->graphics[0]->type == VIR_DOMAIN_GRAPHICS_TYPE_SDL)))) {

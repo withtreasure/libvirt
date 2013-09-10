@@ -41,6 +41,9 @@
 #include <sys/wait.h>
 #include <sys/ioctl.h>
 #include <net/if.h>
+#if HAVE_SYS_SYSCTL_H
+# include <sys/sysctl.h>
+#endif
 
 #include "virerror.h"
 #include "datatypes.h"
@@ -108,6 +111,27 @@ static int networkUnplugBandwidth(virNetworkObjPtr net,
                                   virDomainNetDefPtr iface);
 
 static virNetworkDriverStatePtr driverState = NULL;
+
+static virNetworkObjPtr
+networkObjFromNetwork(virNetworkPtr net)
+{
+    virNetworkDriverStatePtr driver = net->conn->networkPrivateData;
+    virNetworkObjPtr network;
+    char uuidstr[VIR_UUID_STRING_BUFLEN];
+
+    networkDriverLock(driver);
+    network = virNetworkFindByUUID(&driver->networks, net->uuid);
+    networkDriverUnlock(driver);
+
+    if (!network) {
+        virUUIDFormat(net->uuid, uuidstr);
+        virReportError(VIR_ERR_NO_NETWORK,
+                       _("no network with matching uuid '%s' (%s)"),
+                       uuidstr, net->name);
+    }
+
+    return network;
+}
 
 static char *
 networkDnsmasqLeaseFileNameDefault(const char *netname)
@@ -678,9 +702,11 @@ networkDnsmasqConfContents(virNetworkObjPtr network,
                       "##    virsh net-edit %s\n"
                       "## or other application using the libvirt API.\n"
                       "##\n## dnsmasq conf file created by libvirt\n"
-                      "strict-order\n"
-                      "domain-needed\n",
+                      "strict-order\n",
                       network->def->name);
+
+    if (!network->def->dns.forwardPlainNames)
+        virBufferAddLit(&configbuf, "domain-needed\n");
 
     if (network->def->domain) {
         virBufferAsprintf(&configbuf,
@@ -688,10 +714,16 @@ networkDnsmasqConfContents(virNetworkObjPtr network,
                           "expand-hosts\n",
                           network->def->domain);
     }
-    /* need to specify local even if no domain specified */
-    virBufferAsprintf(&configbuf,
-                      "local=/%s/\n",
-                      network->def->domain ? network->def->domain : "");
+
+    if (network->def->domain || !network->def->dns.forwardPlainNames) {
+        /* need to specify local even if no domain specified, unless
+         * the config says we should forward "plain" names (i.e. not
+         * fully qualified, no '.' characters)
+         */
+        virBufferAsprintf(&configbuf,
+                          "local=/%s/\n",
+                          network->def->domain ? network->def->domain : "");
+    }
 
     if (pidfile)
         virBufferAsprintf(&configbuf, "pid-file=%s\n", pidfile);
@@ -1537,10 +1569,20 @@ static int
 networkEnableIpForwarding(bool enableIPv4, bool enableIPv6)
 {
     int ret = 0;
+#ifdef HAVE_SYSCTLBYNAME
+    int enabled = 1;
+    if (enableIPv4)
+        ret = sysctlbyname("net.inet.ip.forwarding", NULL, 0,
+                            &enabled, sizeof(enabled));
+    if (enableIPv6 && ret == 0)
+        ret = sysctlbyname("net.inet6.ip6.forwarding", NULL, 0,
+                            &enabled, sizeof(enabled));
+#else
     if (enableIPv4)
         ret = virFileWriteStr("/proc/sys/net/ipv4/ip_forward", "1\n", 0);
     if (enableIPv6 && ret == 0)
         ret = virFileWriteStr("/proc/sys/net/ipv6/conf/all/forwarding", "1\n", 0);
+#endif
     return ret;
 }
 
@@ -2239,17 +2281,11 @@ cleanup:
 
 static int networkIsActive(virNetworkPtr net)
 {
-    virNetworkDriverStatePtr driver = net->conn->networkPrivateData;
     virNetworkObjPtr obj;
     int ret = -1;
 
-    networkDriverLock(driver);
-    obj = virNetworkFindByUUID(&driver->networks, net->uuid);
-    networkDriverUnlock(driver);
-    if (!obj) {
-        virReportError(VIR_ERR_NO_NETWORK, NULL);
-        goto cleanup;
-    }
+    if (!(obj = networkObjFromNetwork(net)))
+        return ret;
 
     if (virNetworkIsActiveEnsureACL(net->conn, obj->def) < 0)
         goto cleanup;
@@ -2264,17 +2300,11 @@ cleanup:
 
 static int networkIsPersistent(virNetworkPtr net)
 {
-    virNetworkDriverStatePtr driver = net->conn->networkPrivateData;
     virNetworkObjPtr obj;
     int ret = -1;
 
-    networkDriverLock(driver);
-    obj = virNetworkFindByUUID(&driver->networks, net->uuid);
-    networkDriverUnlock(driver);
-    if (!obj) {
-        virReportError(VIR_ERR_NO_NETWORK, NULL);
-        goto cleanup;
-    }
+    if (!(obj = networkObjFromNetwork(net)))
+        return ret;
 
     if (virNetworkIsPersistentEnsureACL(net->conn, obj->def) < 0)
         goto cleanup;
@@ -2811,22 +2841,14 @@ cleanup:
 static char *networkGetXMLDesc(virNetworkPtr net,
                                unsigned int flags)
 {
-    virNetworkDriverStatePtr driver = net->conn->networkPrivateData;
     virNetworkObjPtr network;
     virNetworkDefPtr def;
     char *ret = NULL;
 
     virCheckFlags(VIR_NETWORK_XML_INACTIVE, NULL);
 
-    networkDriverLock(driver);
-    network = virNetworkFindByUUID(&driver->networks, net->uuid);
-    networkDriverUnlock(driver);
-
-    if (!network) {
-        virReportError(VIR_ERR_NO_NETWORK,
-                       "%s", _("no network with matching uuid"));
-        goto cleanup;
-    }
+    if (!(network = networkObjFromNetwork(net)))
+        return ret;
 
     if (virNetworkGetXMLDescEnsureACL(net->conn, network->def) < 0)
         goto cleanup;
@@ -2845,19 +2867,11 @@ cleanup:
 }
 
 static char *networkGetBridgeName(virNetworkPtr net) {
-    virNetworkDriverStatePtr driver = net->conn->networkPrivateData;
     virNetworkObjPtr network;
     char *bridge = NULL;
 
-    networkDriverLock(driver);
-    network = virNetworkFindByUUID(&driver->networks, net->uuid);
-    networkDriverUnlock(driver);
-
-    if (!network) {
-        virReportError(VIR_ERR_NO_NETWORK,
-                       "%s", _("no network with matching id"));
-        goto cleanup;
-    }
+    if (!(network = networkObjFromNetwork(net)))
+        return bridge;
 
     if (virNetworkGetBridgeNameEnsureACL(net->conn, network->def) < 0)
         goto cleanup;
@@ -2879,18 +2893,11 @@ cleanup:
 
 static int networkGetAutostart(virNetworkPtr net,
                              int *autostart) {
-    virNetworkDriverStatePtr driver = net->conn->networkPrivateData;
     virNetworkObjPtr network;
     int ret = -1;
 
-    networkDriverLock(driver);
-    network = virNetworkFindByUUID(&driver->networks, net->uuid);
-    networkDriverUnlock(driver);
-    if (!network) {
-        virReportError(VIR_ERR_NO_NETWORK,
-                       "%s", _("no network with matching uuid"));
-        goto cleanup;
-    }
+    if (!(network = networkObjFromNetwork(net)))
+        return ret;
 
     if (virNetworkGetAutostartEnsureACL(net->conn, network->def) < 0)
         goto cleanup;

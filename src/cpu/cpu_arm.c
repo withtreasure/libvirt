@@ -31,11 +31,15 @@
 static const virArch archs[] = { VIR_ARCH_ARMV7L };
 
 static virCPUDataPtr
-ArmNodeData(void)
+ArmNodeData(virArch arch)
 {
     virCPUDataPtr data;
 
-    ignore_value(VIR_ALLOC(data));
+    if (VIR_ALLOC(data) < 0)
+        return NULL;
+
+    data->arch = arch;
+
     return data;
 }
 
@@ -44,8 +48,12 @@ ArmDecode(virCPUDefPtr cpu ATTRIBUTE_UNUSED,
           const virCPUDataPtr data ATTRIBUTE_UNUSED,
           const char **models ATTRIBUTE_UNUSED,
           unsigned int nmodels ATTRIBUTE_UNUSED,
-          const char *preferred ATTRIBUTE_UNUSED)
+          const char *preferred ATTRIBUTE_UNUSED,
+          unsigned int flags)
 {
+
+    virCheckFlags(VIR_CONNECT_BASELINE_CPU_EXPAND_FEATURES, -1);
+
     return 0;
 }
 

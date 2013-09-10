@@ -546,15 +546,21 @@ sc_avoid_attribute_unused_in_header:
 	  $(_sc_search_regexp)
 
 sc_prohibit_int_ijk:
-	@prohibit='\<(int|unsigned) ([^(]* )*(i|j|k)(\s|,|;)'			\
+	@prohibit='\<(int|unsigned) ([^(]* )*(i|j|k)(\s|,|;)'		\
 	halt='use size_t, not int/unsigned int for loop vars i, j, k'	\
 	  $(_sc_search_regexp)
 
 sc_prohibit_loop_iijjkk:
-	@prohibit='\<(int|unsigned) ([^=]+ )*(ii|jj|kk)(\s|,|;)'				\
-	halt='use i, j, k for loop iterators, not ii, jj, kk' 			\
+	@prohibit='\<(int|unsigned) ([^=]+ )*(ii|jj|kk)(\s|,|;)'	\
+	halt='use i, j, k for loop iterators, not ii, jj, kk' 		\
 	  $(_sc_search_regexp)
 
+# RHEL 5 gcc can't grok "for (int i..."
+sc_prohibit_loop_var_decl:
+	@prohibit='\<for *\(\w+[ *]+\w+'				\
+	in_vc_files='\.[ch]$$'						\
+	halt='declare loop iterators outside the for statement'		\
+	  $(_sc_search_regexp)
 
 # Many of the function names below came from this filter:
 # git grep -B2 '\<_('|grep -E '\.c- *[[:alpha:]_][[:alnum:]_]* ?\(.*[,;]$' \
@@ -685,6 +691,14 @@ sc_spec_indentation:
 	else								\
 	  echo '$(ME): skipping test $@: cppi not installed' 1>&2;	\
 	fi
+
+# Nested conditionals are easier to understand if we enforce that endifs
+# can be paired back to the if
+sc_makefile_conditionals:
+	@prohibit='(else|endif)($$| *#)'				\
+	in_vc_files='Makefile\.am'					\
+	halt='match "if FOO" with "endif FOO" in Makefiles'		\
+	  $(_sc_search_regexp)
 
 # Long lines can be harder to diff; too long, and git send-email chokes.
 # For now, only enforce line length on files where we have intentionally
@@ -830,6 +844,12 @@ sc_prohibit_config_h_in_headers:
 	halt='headers should not include <config.h>'			\
 	  $(_sc_search_regexp)
 
+sc_prohibit_unbounded_arrays_in_rpc:
+	@prohibit='<>'							\
+	in_vc_files='\.x$$'						\
+	halt='Arrays in XDR must have a upper limit set for <NNN>'	\
+	  $(_sc_search_regexp)
+
 
 # We don't use this feature of maint.mk.
 prev_version_file = /dev/null
@@ -899,9 +919,9 @@ $(srcdir)/src/remote/remote_client_bodies.h: $(srcdir)/src/remote/remote_protoco
 exclude_file_name_regexp--sc_avoid_strcase = ^tools/virsh\.h$$
 
 _src1=libvirt|fdstream|qemu/qemu_monitor|util/(vircommand|virfile)|xen/xend_internal|rpc/virnetsocket|lxc/lxc_controller|locking/lock_daemon
-_test1=shunloadtest|virnettlscontexttest|vircgroupmock
+_test1=shunloadtest|virnettlscontexttest|virnettlssessiontest|vircgroupmock
 exclude_file_name_regexp--sc_avoid_write = \
-  ^(src/($(_src1))|daemon/libvirtd|tools/console|tests/($(_test1)))\.c$$
+  ^(src/($(_src1))|daemon/libvirtd|tools/virsh-console|tests/($(_test1)))\.c$$
 
 exclude_file_name_regexp--sc_bindtextdomain = ^(tests|examples)/
 

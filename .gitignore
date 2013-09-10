@@ -58,6 +58,7 @@
 /daemon/libvirtd.policy
 /daemon/libvirtd.service
 /daemon/test_libvirtd.aug
+/docs/aclperms.htmlinc
 /docs/apibuild.py.stamp
 /docs/devhelp/libvirt.devhelp
 /docs/hvsupport.html.in
@@ -115,8 +116,11 @@
 /src/libvirt*.def
 /src/libvirt.syms
 /src/libvirt_access.syms
+/src/libvirt_access.xml
 /src/libvirt_access_lxc.syms
+/src/libvirt_access_lxc.xml
 /src/libvirt_access_qemu.syms
+/src/libvirt_access_qemu.xml
 /src/libvirt_*.stp
 /src/libvirt_*helper
 /src/libvirt_*probes.h
@@ -138,9 +142,12 @@
 /src/rpc/virkeepaliveprotocol.[ch]
 /src/rpc/virnetprotocol.[ch]
 /src/test_libvirt*.aug
+/src/test_virtlockd.aug
 /src/util/virkeymaps.h
 /src/virt-aa-helper
 /src/virtlockd
+/src/virtlockd.8
+/src/virtlockd.8.in
 /src/virtlockd.init
 /tests/*.log
 /tests/*.pid
@@ -215,6 +222,7 @@
 /tools/libvirt-guests.init
 /tools/libvirt-guests.service
 /tools/libvirt-guests.sh
+/tools/virt-login-shell
 /tools/virsh
 /tools/virsh-*-edit.c
 /tools/virt-*-validate

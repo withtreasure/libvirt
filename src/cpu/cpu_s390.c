@@ -32,12 +32,14 @@
 static const virArch archs[] = { VIR_ARCH_S390, VIR_ARCH_S390X };
 
 static virCPUDataPtr
-s390NodeData(void)
+s390NodeData(virArch arch)
 {
     virCPUDataPtr data;
 
     if (VIR_ALLOC(data) < 0)
         return NULL;
+
+    data->arch = arch;
 
     return data;
 }
@@ -48,8 +50,12 @@ s390Decode(virCPUDefPtr cpu ATTRIBUTE_UNUSED,
            const virCPUDataPtr data ATTRIBUTE_UNUSED,
            const char **models ATTRIBUTE_UNUSED,
            unsigned int nmodels ATTRIBUTE_UNUSED,
-           const char *preferred ATTRIBUTE_UNUSED)
+           const char *preferred ATTRIBUTE_UNUSED,
+           unsigned int flags)
 {
+
+    virCheckFlags(VIR_CONNECT_BASELINE_CPU_EXPAND_FEATURES, -1);
+
     return 0;
 }
 

@@ -190,9 +190,15 @@ enum virQEMUCapsFlags {
     QEMU_CAPS_MLOCK              = 149, /* -realtime mlock=on|off */
     QEMU_CAPS_VNC_SHARE_POLICY   = 150, /* set display sharing policy */
     QEMU_CAPS_DEVICE_DEL_EVENT   = 151, /* DEVICE_DELETED event */
+    QEMU_CAPS_DEVICE_DMI_TO_PCI_BRIDGE  = 152, /* -device i82801b11-bridge */
+    QEMU_CAPS_I440FX_PCI_HOLE64_SIZE = 153, /* i440FX-pcihost.pci-hole64-size */
+    QEMU_CAPS_Q35_PCI_HOLE64_SIZE = 154, /* q35-pcihost.pci-hole64-size */
+    QEMU_CAPS_DEVICE_USB_STORAGE = 155, /* -device usb-storage */
+    QEMU_CAPS_USB_STORAGE_REMOVABLE = 156, /* usb-storage.removable */
+    QEMU_CAPS_DEVICE_VIRTIO_MMIO = 157, /* -device virtio-mmio */
 
-    QEMU_CAPS_MIGRATE_QEMU_X_RDMA  = 152, /* have qemu x-rdma migration */
-    QEMU_CAPS_MIGRATE_QEMU_MC    = 153, /* have qemu micro-checkpointing */
+    QEMU_CAPS_MIGRATE_QEMU_X_RDMA  = 158, /* have qemu x-rdma migration */
+    QEMU_CAPS_MIGRATE_QEMU_MC    = 159, /* have qemu micro-checkpointing */
 
     QEMU_CAPS_LAST,                   /* this must always be the last item */
 };
@@ -278,4 +284,8 @@ int virQEMUCapsParseDeviceStr(virQEMUCapsPtr qemuCaps, const char *str);
 VIR_ENUM_DECL(virQEMUCaps);
 
 bool virQEMUCapsUsedQMP(virQEMUCapsPtr qemuCaps);
+bool virQEMUCapsSupportsChardev(virDomainDefPtr def,
+                                virQEMUCapsPtr qemuCaps,
+                                virDomainChrDefPtr chr);
+
 #endif /* __QEMU_CAPABILITIES_H__*/

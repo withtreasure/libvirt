@@ -207,6 +207,7 @@ enum virDomainDeviceAddressType {
     VIR_DOMAIN_DEVICE_ADDRESS_TYPE_SPAPRVIO,
     VIR_DOMAIN_DEVICE_ADDRESS_TYPE_VIRTIO_S390,
     VIR_DOMAIN_DEVICE_ADDRESS_TYPE_CCW,
+    VIR_DOMAIN_DEVICE_ADDRESS_TYPE_VIRTIO_MMIO,
 
     VIR_DOMAIN_DEVICE_ADDRESS_TYPE_LAST
 };
@@ -343,7 +344,8 @@ typedef virSecurityDeviceLabelDef *virSecurityDeviceLabelDefPtr;
 struct _virSecurityDeviceLabelDef {
     char *model;
     char *label;        /* image label string */
-    bool norelabel;
+    bool norelabel;     /* true to skip label attempts */
+    bool labelskip;     /* live-only; true if skipping failed label attempt */
 };
 
 
@@ -508,6 +510,7 @@ enum virDomainDiskBus {
     VIR_DOMAIN_DISK_BUS_USB,
     VIR_DOMAIN_DISK_BUS_UML,
     VIR_DOMAIN_DISK_BUS_SATA,
+    VIR_DOMAIN_DISK_BUS_SD,
 
     VIR_DOMAIN_DISK_BUS_LAST
 };
@@ -539,6 +542,8 @@ enum virDomainDiskProtocol {
     VIR_DOMAIN_DISK_PROTOCOL_SHEEPDOG,
     VIR_DOMAIN_DISK_PROTOCOL_GLUSTER,
     VIR_DOMAIN_DISK_PROTOCOL_ISCSI,
+    VIR_DOMAIN_DISK_PROTOCOL_HTTP,
+    VIR_DOMAIN_DISK_PROTOCOL_FTP,
 
     VIR_DOMAIN_DISK_PROTOCOL_LAST
 };
@@ -690,6 +695,7 @@ struct _virDomainDiskDef {
     char *src;
     char *dst;
     int tray_status;
+    int removable;
     int protocol;
     size_t nhosts;
     virDomainDiskHostDefPtr hosts;
@@ -768,7 +774,9 @@ enum virDomainControllerType {
 
 typedef enum {
     VIR_DOMAIN_CONTROLLER_MODEL_PCI_ROOT,
+    VIR_DOMAIN_CONTROLLER_MODEL_PCIE_ROOT,
     VIR_DOMAIN_CONTROLLER_MODEL_PCI_BRIDGE,
+    VIR_DOMAIN_CONTROLLER_MODEL_DMI_TO_PCI_BRIDGE,
 
     VIR_DOMAIN_CONTROLLER_MODEL_PCI_LAST
 } virDomainControllerModelPCI;
@@ -809,6 +817,13 @@ struct _virDomainVirtioSerialOpts {
     int vectors; /* -1 == undef */
 };
 
+typedef struct _virDomainPciControllerOpts virDomainPciControllerOpts;
+typedef virDomainPciControllerOpts *virDomainPciControllerOptsPtr;
+struct _virDomainPciControllerOpts {
+    bool pcihole64;
+    unsigned long pcihole64size;
+};
+
 /* Stores the virtual disk controller configuration */
 struct _virDomainControllerDef {
     int type;
@@ -817,6 +832,7 @@ struct _virDomainControllerDef {
     unsigned int queues;
     union {
         virDomainVirtioSerialOpts vioserial;
+        virDomainPciControllerOpts pciopts;
     } opts;
     virDomainDeviceInfo info;
 };
@@ -2358,6 +2374,7 @@ int virDomainNetFindIdx(virDomainDefPtr def, virDomainNetDefPtr net);
 virDomainNetDefPtr virDomainNetFind(virDomainDefPtr def, const char *device);
 int virDomainNetInsert(virDomainDefPtr def, virDomainNetDefPtr net);
 virDomainNetDefPtr virDomainNetRemove(virDomainDefPtr def, size_t i);
+void virDomainNetRemoveHostdev(virDomainDefPtr def, virDomainNetDefPtr net);
 
 int virDomainHostdevInsert(virDomainDefPtr def, virDomainHostdevDefPtr hostdev);
 virDomainHostdevDefPtr

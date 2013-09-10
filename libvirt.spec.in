@@ -15,8 +15,9 @@
 
 # A client only build will create a libvirt.so only containing
 # the generic RPC driver, and test driver and no libvirtd
-# Default to a full server + client build
-%define client_only        0
+# Default to a full server + client build, but with the possibility
+# of a command-line or ~/.rpmmacros override for client-only.
+%{!?client_only:%define client_only 0}
 
 # Now turn off server build in certain cases
 
@@ -50,6 +51,7 @@
 %define with_lxc           0%{!?_without_lxc:%{server_drivers}}
 %define with_uml           0%{!?_without_uml:%{server_drivers}}
 %define with_libxl         0%{!?_without_libxl:%{server_drivers}}
+%define with_vbox          0%{!?_without_vbox:%{server_drivers}}
 
 %define with_qemu_tcg      %{with_qemu}
 # Change if we ever provide qemu-kvm binaries on non-x86 hosts
@@ -71,7 +73,6 @@
 
 # Then the hypervisor drivers that run outside libvirtd, in libvirt.so
 %define with_openvz        0%{!?_without_openvz:1}
-%define with_vbox          0%{!?_without_vbox:1}
 %define with_vmware        0%{!?_without_vmware:1}
 %define with_phyp          0%{!?_without_phyp:1}
 %define with_esx           0%{!?_without_esx:1}
@@ -438,7 +439,9 @@ BuildRequires: readline-devel
 BuildRequires: ncurses-devel
 BuildRequires: gettext
 BuildRequires: libtasn1-devel
+%if (0%{?rhel} && 0%{?rhel} < 7) || (0%{?fedora} && 0%{?fedora} < 19)
 BuildRequires: libgcrypt-devel
+%endif
 BuildRequires: gnutls-devel
 BuildRequires: libattr-devel
 %if %{with_libvirtd}
@@ -1408,6 +1411,7 @@ of recent versions of Linux (and other OSes).
            --with-qemu-user=%{qemu_user} \
            --with-qemu-group=%{qemu_group} \
            %{?enable_werror} \
+           --enable-expensive-tests \
            %{init_scripts}
 make %{?_smp_mflags}
 gzip -9 ChangeLog
@@ -1759,6 +1763,7 @@ fi
 %config(noreplace) %{_sysconfdir}/sysconfig/libvirtd
 %config(noreplace) %{_sysconfdir}/sysconfig/virtlockd
 %config(noreplace) %{_sysconfdir}/libvirt/libvirtd.conf
+%config(noreplace) %{_sysconfdir}/libvirt/virtlockd.conf
     %if 0%{?fedora} >= 14 || 0%{?rhel} >= 6
 %config(noreplace) %{_prefix}/lib/sysctl.d/libvirtd.conf
     %endif
@@ -1840,6 +1845,8 @@ fi
 
 %{_datadir}/augeas/lenses/libvirtd.aug
 %{_datadir}/augeas/lenses/tests/test_libvirtd.aug
+%{_datadir}/augeas/lenses/virtlockd.aug
+%{_datadir}/augeas/lenses/tests/test_virtlockd.aug
 %{_datadir}/augeas/lenses/libvirt_lockd.aug
 %{_datadir}/augeas/lenses/tests/test_libvirt_lockd.aug
 
@@ -1872,6 +1879,7 @@ fi
 %attr(0755, root, root) %{_sbindir}/virtlockd
 
 %{_mandir}/man8/libvirtd.8*
+%{_mandir}/man8/virtlockd.8*
 
     %if %{with_driver_modules}
         %if %{with_network}
@@ -2007,14 +2015,23 @@ fi
 %doc AUTHORS ChangeLog.gz NEWS README COPYING COPYING.LESSER TODO
 
 %config(noreplace) %{_sysconfdir}/libvirt/libvirt.conf
+%if %{with_lxc}
+%config(noreplace) %{_sysconfdir}/libvirt/virt-login-shell.conf
+%endif
 %{_mandir}/man1/virsh.1*
 %{_mandir}/man1/virt-xml-validate.1*
 %{_mandir}/man1/virt-pki-validate.1*
 %{_mandir}/man1/virt-host-validate.1*
+%if %{with_lxc}
+%{_mandir}/man1/virt-login-shell.1*
+%endif
 %{_bindir}/virsh
 %{_bindir}/virt-xml-validate
 %{_bindir}/virt-pki-validate
 %{_bindir}/virt-host-validate
+%if %{with_lxc}
+%attr(4755, root, root) %{_bindir}/virt-login-shell
+%endif
 %{_libdir}/lib*.so.*
 
 %if %{with_dtrace}
@@ -2095,6 +2112,22 @@ fi
 %endif
 
 %changelog
+* Mon Sep  2 2013 Daniel Veillard <veillard@redhat.com> - 1.1.2-1
+- various improvements to libxl driver
+- systemd integration improvements
+- Add flag to BaselineCPU API to return detailed CPU features
+- Introduce a virt-login-shell binary
+- conf: add startupPolicy attribute for harddisk
+- various bug fixes and improvements including localizations
+
+* Tue Jul 30 2013 Daniel Veillard <veillard@redhat.com> - 1.1.1-1
+- Adding device removal or deletion events
+- Introduce new domain create APIs to pass pre-opened FDs to LXC
+- Add interface versions for Xen 4.3
+- Add new public API virDomainSetMemoryStatsPeriod
+- Various LXC improvements
+- various bug fixes and improvements including localizations
+
 * Mon Jul  1 2013 Daniel Veillard <veillard@redhat.com> - 1.1.0-1
 - CVE-2013-2218: Fix crash listing network interfaces with filters
 - Fine grained ACL support for the API

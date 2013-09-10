@@ -1602,8 +1602,11 @@ static virDomainPtr qemuDomainCreateXML(virConnectPtr conn,
 
     def = NULL;
 
-    if (qemuDomainObjBeginJob(driver, vm, QEMU_JOB_MODIFY) < 0)
-        goto cleanup; /* XXXX free the 'vm' we created ? */
+    if (qemuDomainObjBeginJob(driver, vm, QEMU_JOB_MODIFY) < 0) {
+        qemuDomainRemoveInactive(driver, vm);
+        vm = NULL;
+        goto cleanup;
+    }
 
     if (qemuProcessStart(conn, driver, vm, NULL, -1, NULL, NULL,
                          VIR_NETDEV_VPORT_PROFILE_OP_CREATE,
@@ -1631,10 +1634,10 @@ static virDomainPtr qemuDomainCreateXML(virConnectPtr conn,
     virDomainAuditStart(vm, "booted", true);
 
     dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom) dom->id = vm->def->id;
+    if (dom)
+        dom->id = vm->def->id;
 
-    if (vm &&
-        qemuDomainObjEndJob(driver, vm) == 0)
+    if (qemuDomainObjEndJob(driver, vm) == 0)
         vm = NULL;
 
 cleanup:
@@ -3982,6 +3985,7 @@ static int qemuDomainHotplugVcpus(virQEMUDriverPtr driver,
                        _("got wrong number of vCPU pids from QEMU monitor. "
                          "got %d, wanted %d"),
                        ncpupids, vcpus);
+        vcpus = oldvcpus;
         ret = -1;
         goto cleanup;
     }
@@ -6270,120 +6274,6 @@ qemuDomainUndefine(virDomainPtr dom)
 }
 
 static int
-qemuDomainAttachDeviceDiskLive(virConnectPtr conn,
-                               virQEMUDriverPtr driver,
-                               virDomainObjPtr vm,
-                               virDomainDeviceDefPtr dev)
-{
-    virDomainDiskDefPtr disk = dev->data.disk;
-    virDomainDiskDefPtr orig_disk = NULL;
-    virDomainDeviceDefPtr dev_copy = NULL;
-    virDomainDiskDefPtr tmp = NULL;
-    virCgroupPtr cgroup = NULL;
-    virCapsPtr caps = NULL;
-    int ret = -1;
-
-    if (disk->driverName != NULL && !STREQ(disk->driverName, "qemu")) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("unsupported driver name '%s' for disk '%s'"),
-                       disk->driverName, disk->src);
-        goto end;
-    }
-
-    if (qemuTranslateDiskSourcePool(conn, disk) < 0)
-        goto end;
-
-    if (qemuAddSharedDevice(driver, dev, vm->def->name) < 0)
-        goto end;
-
-    if (qemuSetUnprivSGIO(dev) < 0)
-        goto end;
-
-    if (qemuDomainDetermineDiskChain(driver, disk, false) < 0)
-        goto end;
-
-    if (qemuSetupDiskCgroup(vm, disk) < 0)
-        goto end;
-
-    switch (disk->device)  {
-    case VIR_DOMAIN_DISK_DEVICE_CDROM:
-    case VIR_DOMAIN_DISK_DEVICE_FLOPPY:
-        if (!(orig_disk = virDomainDiskFindByBusAndDst(vm->def,
-                                                       disk->bus, disk->dst))) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("No device with bus '%s' and target '%s'"),
-                           virDomainDiskBusTypeToString(disk->bus),
-                           disk->dst);
-            goto end;
-        }
-
-        if (!(caps = virQEMUDriverGetCapabilities(driver, false)))
-            goto end;
-
-        tmp = dev->data.disk;
-        dev->data.disk = orig_disk;
-
-        if (!(dev_copy = virDomainDeviceDefCopy(dev, vm->def,
-                                                caps, driver->xmlopt))) {
-            dev->data.disk = tmp;
-            goto end;
-        }
-        dev->data.disk = tmp;
-
-        ret = qemuDomainChangeEjectableMedia(driver, vm, disk, orig_disk, false);
-        /* 'disk' must not be accessed now - it has been free'd.
-         * 'orig_disk' now points to the new disk, while 'dev_copy'
-         * now points to the old disk */
-
-        /* Need to remove the shared disk entry for the original disk src
-         * if the operation is either ejecting or updating.
-         */
-        if (ret == 0)
-            ignore_value(qemuRemoveSharedDevice(driver, dev_copy,
-                                                vm->def->name));
-        break;
-    case VIR_DOMAIN_DISK_DEVICE_DISK:
-    case VIR_DOMAIN_DISK_DEVICE_LUN:
-        if (disk->bus == VIR_DOMAIN_DISK_BUS_USB) {
-            if (disk->device == VIR_DOMAIN_DISK_DEVICE_LUN) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("disk device='lun' is not supported for usb bus"));
-                break;
-            }
-            ret = qemuDomainAttachUsbMassstorageDevice(conn, driver, vm,
-                                                       disk);
-        } else if (disk->bus == VIR_DOMAIN_DISK_BUS_VIRTIO) {
-            ret = qemuDomainAttachVirtioDiskDevice(conn, driver, vm, disk);
-        } else if (disk->bus == VIR_DOMAIN_DISK_BUS_SCSI) {
-            ret = qemuDomainAttachSCSIDisk(conn, driver, vm, disk);
-        } else {
-            virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
-                           _("disk bus '%s' cannot be hotplugged."),
-                           virDomainDiskBusTypeToString(disk->bus));
-        }
-        break;
-    default:
-        virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
-                       _("disk device type '%s' cannot be hotplugged"),
-                       virDomainDiskDeviceTypeToString(disk->device));
-        break;
-    }
-
-    if (ret != 0 && cgroup) {
-        if (qemuTeardownDiskCgroup(vm, disk) < 0)
-            VIR_WARN("Failed to teardown cgroup for disk path %s",
-                     NULLSTR(disk->src));
-    }
-
-end:
-    if (ret != 0)
-        ignore_value(qemuRemoveSharedDevice(driver, dev, vm->def->name));
-    virObjectUnref(caps);
-    virDomainDeviceDefFree(dev_copy);
-    return ret;
-}
-
-static int
 qemuDomainAttachDeviceControllerLive(virQEMUDriverPtr driver,
                                      virDomainObjPtr vm,
                                      virDomainDeviceDefPtr dev)
@@ -6471,58 +6361,6 @@ qemuDomainAttachDeviceLive(virDomainObjPtr vm,
 
     if (ret == 0)
         qemuDomainUpdateDeviceList(driver, vm);
-
-    return ret;
-}
-
-static int
-qemuFindDisk(virDomainDefPtr def, const char *dst)
-{
-    size_t i;
-
-    for (i = 0; i < def->ndisks; i++) {
-        if (STREQ(def->disks[i]->dst, dst)) {
-            return i;
-        }
-    }
-
-    return -1;
-}
-
-static int
-qemuDomainDetachDeviceDiskLive(virQEMUDriverPtr driver,
-                               virDomainObjPtr vm,
-                               virDomainDeviceDefPtr dev)
-{
-    virDomainDiskDefPtr disk;
-    int ret = -1;
-    int idx;
-
-    if ((idx = qemuFindDisk(vm->def, dev->data.disk->dst)) < 0) {
-        virReportError(VIR_ERR_OPERATION_FAILED,
-                       _("disk %s not found"), dev->data.disk->dst);
-        return -1;
-    }
-    disk = vm->def->disks[idx];
-
-    switch (disk->device) {
-    case VIR_DOMAIN_DISK_DEVICE_DISK:
-    case VIR_DOMAIN_DISK_DEVICE_LUN:
-        if (disk->bus == VIR_DOMAIN_DISK_BUS_VIRTIO)
-            ret = qemuDomainDetachVirtioDiskDevice(driver, vm, disk);
-        else if (disk->bus == VIR_DOMAIN_DISK_BUS_SCSI ||
-                 disk->bus == VIR_DOMAIN_DISK_BUS_USB)
-            ret = qemuDomainDetachDiskDevice(driver, vm, disk);
-        else
-            virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                           _("This type of disk cannot be hot unplugged"));
-        break;
-    default:
-        virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
-                       _("disk device type '%s' cannot be detached"),
-                       virDomainDiskDeviceTypeToString(disk->device));
-        break;
-    }
 
     return ret;
 }
@@ -8357,8 +8195,6 @@ qemuDomainSetNumaParameters(virDomainPtr dom,
             if (virBitmapParse(params[i].value.s,
                                0, &nodeset,
                                VIR_DOMAIN_CPUMASK_LEN) < 0) {
-                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                               _("Failed to parse nodeset"));
                 ret = -1;
                 continue;
             }
@@ -10140,6 +9976,7 @@ qemuDomainMigratePrepareTunnel(virConnectPtr dconn,
 {
     virQEMUDriverPtr driver = dconn->privateData;
     virDomainDefPtr def = NULL;
+    char *origname = NULL;
     int ret = -1;
 
     virCheckFlags(QEMU_MIGRATION_FLAGS, -1);
@@ -10157,7 +9994,7 @@ qemuDomainMigratePrepareTunnel(virConnectPtr dconn,
         goto cleanup;
     }
 
-    if (!(def = qemuMigrationPrepareDef(driver, dom_xml, dname)))
+    if (!(def = qemuMigrationPrepareDef(driver, dom_xml, dname, &origname)))
         goto cleanup;
 
     if (virDomainMigratePrepareTunnelEnsureACL(dconn, def) < 0)
@@ -10165,9 +10002,10 @@ qemuDomainMigratePrepareTunnel(virConnectPtr dconn,
 
     ret = qemuMigrationPrepareTunnel(driver, dconn,
                                      NULL, 0, NULL, NULL, /* No cookies in v2 */
-                                     st, &def, flags);
+                                     st, &def, origname, flags);
 
 cleanup:
+    VIR_FREE(origname);
     virDomainDefFree(def);
     return ret;
 }
@@ -10189,6 +10027,7 @@ qemuDomainMigratePrepare2(virConnectPtr dconn,
 {
     virQEMUDriverPtr driver = dconn->privateData;
     virDomainDefPtr def = NULL;
+    char *origname = NULL;
     int ret = -1;
 
     virCheckFlags(QEMU_MIGRATION_FLAGS, -1);
@@ -10210,7 +10049,7 @@ qemuDomainMigratePrepare2(virConnectPtr dconn,
         goto cleanup;
     }
 
-    if (!(def = qemuMigrationPrepareDef(driver, dom_xml, dname)))
+    if (!(def = qemuMigrationPrepareDef(driver, dom_xml, dname, &origname)))
         goto cleanup;
 
     if (virDomainMigratePrepare2EnsureACL(dconn, def) < 0)
@@ -10223,9 +10062,10 @@ qemuDomainMigratePrepare2(virConnectPtr dconn,
     ret = qemuMigrationPrepareDirect(driver, dconn,
                                      NULL, 0, NULL, NULL, /* No cookies */
                                      uri_in, uri_out,
-                                     &def, flags);
+                                     &def, origname, flags);
 
 cleanup:
+    VIR_FREE(origname);
     virDomainDefFree(def);
     return ret;
 }
@@ -10402,6 +10242,7 @@ qemuDomainMigratePrepare3(virConnectPtr dconn,
 {
     virQEMUDriverPtr driver = dconn->privateData;
     virDomainDefPtr def = NULL;
+    char *origname = NULL;
     int ret = -1;
 
     virCheckFlags(QEMU_MIGRATION_FLAGS, -1);
@@ -10416,7 +10257,7 @@ qemuDomainMigratePrepare3(virConnectPtr dconn,
         goto cleanup;
     }
 
-    if (!(def = qemuMigrationPrepareDef(driver, dom_xml, dname)))
+    if (!(def = qemuMigrationPrepareDef(driver, dom_xml, dname, &origname)))
         goto cleanup;
 
     if (virDomainMigratePrepare3EnsureACL(dconn, def) < 0)
@@ -10426,9 +10267,10 @@ qemuDomainMigratePrepare3(virConnectPtr dconn,
                                      cookiein, cookieinlen,
                                      cookieout, cookieoutlen,
                                      uri_in, uri_out,
-                                     &def, flags);
+                                     &def, origname, flags);
 
 cleanup:
+    VIR_FREE(origname);
     virDomainDefFree(def);
     return ret;
 }
@@ -10449,6 +10291,7 @@ qemuDomainMigratePrepare3Params(virConnectPtr dconn,
     const char *dom_xml = NULL;
     const char *dname = NULL;
     const char *uri_in = NULL;
+    char *origname = NULL;
     int ret = -1;
 
     virCheckFlags(QEMU_MIGRATION_FLAGS, -1);
@@ -10476,7 +10319,7 @@ qemuDomainMigratePrepare3Params(virConnectPtr dconn,
         goto cleanup;
     }
 
-    if (!(def = qemuMigrationPrepareDef(driver, dom_xml, dname)))
+    if (!(def = qemuMigrationPrepareDef(driver, dom_xml, dname, &origname)))
         goto cleanup;
 
     if (virDomainMigratePrepare3ParamsEnsureACL(dconn, def) < 0)
@@ -10486,9 +10329,10 @@ qemuDomainMigratePrepare3Params(virConnectPtr dconn,
                                      cookiein, cookieinlen,
                                      cookieout, cookieoutlen,
                                      uri_in, uri_out,
-                                     &def, flags);
+                                     &def, origname, flags);
 
 cleanup:
+    VIR_FREE(origname);
     virDomainDefFree(def);
     return ret;
 }
@@ -10508,6 +10352,7 @@ qemuDomainMigratePrepareTunnel3(virConnectPtr dconn,
 {
     virQEMUDriverPtr driver = dconn->privateData;
     virDomainDefPtr def = NULL;
+    char *origname = NULL;
     int ret = -1;
 
     virCheckFlags(QEMU_MIGRATION_FLAGS, -1);
@@ -10518,7 +10363,7 @@ qemuDomainMigratePrepareTunnel3(virConnectPtr dconn,
         goto cleanup;
     }
 
-    if (!(def = qemuMigrationPrepareDef(driver, dom_xml, dname)))
+    if (!(def = qemuMigrationPrepareDef(driver, dom_xml, dname, &origname)))
         goto cleanup;
 
     if (virDomainMigratePrepareTunnel3EnsureACL(dconn, def) < 0)
@@ -10527,9 +10372,10 @@ qemuDomainMigratePrepareTunnel3(virConnectPtr dconn,
     ret = qemuMigrationPrepareTunnel(driver, dconn,
                                      cookiein, cookieinlen,
                                      cookieout, cookieoutlen,
-                                     st, &def, flags);
+                                     st, &def, origname, flags);
 
 cleanup:
+    VIR_FREE(origname);
     virDomainDefFree(def);
     return ret;
 }
@@ -10549,6 +10395,7 @@ qemuDomainMigratePrepareTunnel3Params(virConnectPtr dconn,
     virDomainDefPtr def = NULL;
     const char *dom_xml = NULL;
     const char *dname = NULL;
+    char *origname = NULL;
     int ret = -1;
 
     virCheckFlags(QEMU_MIGRATION_FLAGS, -1);
@@ -10569,7 +10416,7 @@ qemuDomainMigratePrepareTunnel3Params(virConnectPtr dconn,
         goto cleanup;
     }
 
-    if (!(def = qemuMigrationPrepareDef(driver, dom_xml, dname)))
+    if (!(def = qemuMigrationPrepareDef(driver, dom_xml, dname, &origname)))
         goto cleanup;
 
     if (virDomainMigratePrepareTunnel3ParamsEnsureACL(dconn, def) < 0)
@@ -10578,9 +10425,10 @@ qemuDomainMigratePrepareTunnel3Params(virConnectPtr dconn,
     ret = qemuMigrationPrepareTunnel(driver, dconn,
                                      cookiein, cookieinlen,
                                      cookieout, cookieoutlen,
-                                     st, &def, flags);
+                                     st, &def, origname, flags);
 
 cleanup:
+    VIR_FREE(origname);
     virDomainDefFree(def);
     return ret;
 }
@@ -11056,12 +10904,12 @@ qemuConnectBaselineCPU(virConnectPtr conn ATTRIBUTE_UNUSED,
 {
     char *cpu = NULL;
 
-    virCheckFlags(0, NULL);
+    virCheckFlags(VIR_CONNECT_BASELINE_CPU_EXPAND_FEATURES, NULL);
 
     if (virConnectBaselineCPUEnsureACL(conn) < 0)
         goto cleanup;
 
-    cpu = cpuBaselineXML(xmlCPUs, ncpus, NULL, 0);
+    cpu = cpuBaselineXML(xmlCPUs, ncpus, NULL, 0, flags);
 
 cleanup:
     return cpu;
@@ -13785,34 +13633,38 @@ static virDomainPtr qemuDomainQemuAttach(virConnectPtr conn,
 
     def = NULL;
 
-    if (qemuDomainObjBeginJob(driver, vm, QEMU_JOB_MODIFY) < 0)
+    if (qemuDomainObjBeginJob(driver, vm, QEMU_JOB_MODIFY) < 0) {
+        qemuDomainRemoveInactive(driver, vm);
+        vm = NULL;
         goto cleanup;
+    }
 
     if (qemuProcessAttach(conn, driver, vm, pid,
                           pidfile, monConfig, monJSON) < 0) {
+        if (qemuDomainObjEndJob(driver, vm) > 0)
+            qemuDomainRemoveInactive(driver, vm);
+        vm = NULL;
         monConfig = NULL;
-        goto endjob;
+        goto cleanup;
     }
 
     monConfig = NULL;
 
     dom = virGetDomain(conn, vm->def->name, vm->def->uuid);
-    if (dom) dom->id = vm->def->id;
+    if (dom)
+        dom->id = vm->def->id;
 
-endjob:
-    if (qemuDomainObjEndJob(driver, vm) == 0) {
+    if (qemuDomainObjEndJob(driver, vm) == 0)
         vm = NULL;
-        goto cleanup;
-    }
 
 cleanup:
     virDomainDefFree(def);
-    virObjectUnref(qemuCaps);
     virDomainChrSourceDefFree(monConfig);
     if (vm)
         virObjectUnlock(vm);
     VIR_FREE(pidfile);
     virObjectUnref(caps);
+    virObjectUnref(qemuCaps);
     return dom;
 }
 
@@ -14779,6 +14631,10 @@ qemuDomainOpenGraphics(virDomainPtr dom,
         goto cleanup;
     }
 
+    if (virSecurityManagerSetImageFDLabel(driver->securityManager, vm->def,
+                                          fd) < 0)
+        goto cleanup;
+
     if (qemuDomainObjBeginJob(driver, vm, QEMU_JOB_MODIFY) < 0)
         goto cleanup;
     qemuDomainObjEnterMonitor(driver, vm);
@@ -14809,7 +14665,7 @@ qemuDomainSetBlockIoTune(virDomainPtr dom,
     virDomainDefPtr persistentDef = NULL;
     virDomainBlockIoTuneInfo info;
     virDomainBlockIoTuneInfo *oldinfo;
-    const char *device = NULL;
+    char *device = NULL;
     int ret = -1;
     size_t i;
     int idx = -1;
@@ -14987,7 +14843,7 @@ qemuDomainGetBlockIoTune(virDomainPtr dom,
     qemuDomainObjPrivatePtr priv;
     virDomainDefPtr persistentDef = NULL;
     virDomainBlockIoTuneInfo reply;
-    const char *device = NULL;
+    char *device = NULL;
     int ret = -1;
     size_t i;
     virCapsPtr caps = NULL;

@@ -338,6 +338,7 @@ int virQEMUDriverConfigLoadFile(virQEMUDriverConfigPtr cfg,
     GET_VALUE_BOOL("vnc_sasl", cfg->vncSASL);
     GET_VALUE_STR("vnc_sasl_dir", cfg->vncSASLdir);
     GET_VALUE_BOOL("vnc_allow_host_audio", cfg->vncAllowHostAudio);
+    GET_VALUE_BOOL("nographics_allow_host_audio", cfg->nogfxAllowHostAudio);
 
     p = virConfGetValue(conf, "security_driver");
     if (p && p->type == VIR_CONF_LIST) {
@@ -1065,7 +1066,7 @@ qemuSetUnprivSGIO(virDomainDeviceDefPtr dev)
         disk = dev->data.disk;
 
         if (disk->device != VIR_DOMAIN_DISK_DEVICE_LUN ||
-            virDomainDiskSourceIsBlockType(disk))
+            !virDomainDiskSourceIsBlockType(disk))
             return 0;
 
         path = disk->src;
