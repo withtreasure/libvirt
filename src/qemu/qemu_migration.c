@@ -1698,7 +1698,8 @@ static int
 qemuMigrationUpdateJobStatus(virQEMUDriverPtr driver,
                              virDomainObjPtr vm,
                              const char *job,
-                             enum qemuDomainAsyncJob asyncJob)
+                             enum qemuDomainAsyncJob asyncJob,
+                             bool checkpointing)
 {
     qemuDomainObjPrivatePtr priv = vm->privateData;
     int ret;
@@ -1709,6 +1710,12 @@ qemuMigrationUpdateJobStatus(virQEMUDriverPtr driver,
     ret = qemuDomainObjEnterMonitorAsync(driver, vm, asyncJob);
     if (ret < 0) {
         /* Guest already exited; nothing further to update.  */
+        if (checkpointing) {
+            priv->job.info.type = VIR_DOMAIN_JOB_COMPLETED;
+            priv->job.status.status = QEMU_MONITOR_MIGRATION_STATUS_COMPLETED;
+            return 0;
+        }
+
         return -1;
     }
     ret = qemuMonitorGetMigrationStatus(priv->mon, &status);
@@ -1718,6 +1725,11 @@ qemuMigrationUpdateJobStatus(virQEMUDriverPtr driver,
     priv->job.status = status;
 
     if (ret < 0 || virTimeMillisNow(&priv->job.info.timeElapsed) < 0) {
+        if (checkpointing) {
+            priv->job.info.type = VIR_DOMAIN_JOB_COMPLETED;
+            priv->job.status.status = QEMU_MONITOR_MIGRATION_STATUS_COMPLETED;
+            return 0;
+        }
         priv->job.info.type = VIR_DOMAIN_JOB_FAILED;
         return -1;
     }
@@ -1783,7 +1795,8 @@ qemuMigrationUpdateJobStatus(virQEMUDriverPtr driver,
 static int
 qemuMigrationWaitForCompletion(virQEMUDriverPtr driver, virDomainObjPtr vm,
                                enum qemuDomainAsyncJob asyncJob,
-                               virConnectPtr dconn, bool abort_on_error)
+                               virConnectPtr dconn, bool abort_on_error,
+                               bool checkpointing)
 {
     qemuDomainObjPrivatePtr priv = vm->privateData;
     const char *job;
@@ -1815,8 +1828,10 @@ qemuMigrationWaitForCompletion(virQEMUDriverPtr driver, virDomainObjPtr vm,
             pauseReason == VIR_DOMAIN_PAUSED_IOERROR)
             goto cancel;
 
-        if (qemuMigrationUpdateJobStatus(driver, vm, job, asyncJob) < 0)
+        if (qemuMigrationUpdateJobStatus(driver, vm, job, asyncJob,
+                                            checkpointing) < 0) {
             goto cleanup;
+        }
 
         if (dconn && virConnectIsAlive(dconn) <= 0) {
             virReportError(VIR_ERR_OPERATION_FAILED, "%s",
@@ -3359,7 +3374,7 @@ qemuMigrationRun(virQEMUDriverPtr driver,
          * connection from qemu which may never be initiated.
          */
         if (qemuMigrationUpdateJobStatus(driver, vm, _("migration job"),
-                                         QEMU_ASYNC_JOB_MIGRATION_OUT) < 0)
+                                         QEMU_ASYNC_JOB_MIGRATION_OUT, false) < 0)
             goto cancel;
 
         while ((fd = accept(spec->dest.unix_socket.sock, NULL, NULL)) < 0) {
@@ -3377,7 +3392,8 @@ qemuMigrationRun(virQEMUDriverPtr driver,
 
     if (qemuMigrationWaitForCompletion(driver, vm,
                                        QEMU_ASYNC_JOB_MIGRATION_OUT,
-                                       dconn, abort_on_error) < 0)
+                                       dconn, abort_on_error,
+                                       flags & VIR_MIGRATE_MC) < 0)
         goto cleanup;
 
     /* When migration completed, QEMU will have paused the
@@ -4805,7 +4821,7 @@ qemuMigrationToFile(virQEMUDriverPtr driver, virDomainObjPtr vm,
     if (rc < 0)
         goto cleanup;
 
-    rc = qemuMigrationWaitForCompletion(driver, vm, asyncJob, NULL, false);
+    rc = qemuMigrationWaitForCompletion(driver, vm, asyncJob, NULL, false, false);
 
     if (rc < 0)
         goto cleanup;
