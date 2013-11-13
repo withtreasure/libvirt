@@ -21,6 +21,7 @@
 # that actually use them. Also keep GETTEXT_CPPFLAGS at the end.
 INCLUDES =	-I../gnulib/lib					\
 		-I$(top_srcdir)/gnulib/lib			\
+		-I$(top_srcdir)					\
 		-I../include					\
 		-I$(top_srcdir)/include				\
 		-I$(top_srcdir)/src/util			\
@@ -48,11 +49,14 @@ nodist_conf_DATA =
 
 THREAD_LIBS = $(LIB_PTHREAD) $(LTLIBMULTITHREAD)
 
+SECDRIVER_CFLAGS =
 SECDRIVER_LIBS =
 if WITH_SECDRIVER_SELINUX
+SECDRIVER_CFLAGS += $(SELINUX_CFLAGS)
 SECDRIVER_LIBS += $(SELINUX_LIBS)
 endif WITH_SECDRIVER_SELINUX
 if WITH_SECDRIVER_APPARMOR
+SECDRIVER_CFLAGS += $(APPARMOR_CFLAGS)
 SECDRIVER_LIBS += $(APPARMOR_LIBS)
 endif WITH_SECDRIVER_APPARMOR
 
@@ -154,12 +158,12 @@ UTIL_SOURCES =							\
 EXTRA_DIST += $(srcdir)/util/virkeymaps.h $(srcdir)/util/keymaps.csv \
 		$(srcdir)/util/virkeycode-mapgen.py
 
-BUILT_SOURCES += $(srcdir)/util/virkeymaps.h
+BUILT_SOURCES += util/virkeymaps.h
 
-$(srcdir)/util/virkeymaps.h: $(srcdir)/util/keymaps.csv	\
+util/virkeymaps.h: $(srcdir)/util/keymaps.csv	\
 		$(srcdir)/util/virkeycode-mapgen.py
 	$(AM_V_GEN)$(PYTHON) $(srcdir)/util/virkeycode-mapgen.py \
-	  <$(srcdir)/util/keymaps.csv >$@
+	  <$(srcdir)/util/keymaps.csv >$(srcdir)/util/virkeymaps.h
 
 EXTRA_DIST += util/virthreadpthread.c util/virthreadwin32.c
 
@@ -185,8 +189,8 @@ LOCK_DRIVER_SANLOCK_HELPER_SOURCES = \
 		locking/sanlock_helper.c
 
 LOCK_PROTOCOL_GENERATED = \
-		$(srcdir)/locking/lock_protocol.h \
-		$(srcdir)/locking/lock_protocol.c \
+		locking/lock_protocol.h \
+		locking/lock_protocol.c \
 		$(NULL)
 
 LOCK_PROTOCOL = $(srcdir)/locking/lock_protocol.x
@@ -196,7 +200,7 @@ BUILT_SOURCES += $(LOCK_PROTOCOL_GENERATED)
 MAINTAINERCLEANFILES += $(LOCK_PROTOCOL_GENERATED)
 
 LOCK_DAEMON_GENERATED = \
-		$(srcdir)/locking/lock_daemon_dispatch_stubs.h
+		locking/lock_daemon_dispatch_stubs.h
 		$(NULL)
 
 BUILT_SOURCES += $(LOCK_DAEMON_GENERATED)
@@ -216,11 +220,11 @@ LOCK_DAEMON_SOURCES = \
 		locking/lock_daemon_dispatch.h \
 		$(NULL)
 
-$(srcdir)/locking/lock_daemon_dispatch_stubs.h: $(LOCK_PROTOCOL) \
+locking/lock_daemon_dispatch_stubs.h: $(LOCK_PROTOCOL) \
 		$(srcdir)/rpc/gendispatch.pl Makefile.am
 	$(AM_V_GEN)perl -w $(srcdir)/rpc/gendispatch.pl --mode=server \
 	    virLockSpaceProtocol VIR_LOCK_SPACE_PROTOCOL \
-	    $(LOCK_PROTOCOL) > $@
+	    $(LOCK_PROTOCOL) > $(srcdir)/locking/lock_daemon_dispatch_stubs.h
 
 
 NETDEV_CONF_SOURCES =						\
@@ -302,35 +306,39 @@ CONF_SOURCES =							\
 
 # The remote RPC driver, covering domains, storage, networks, etc
 REMOTE_DRIVER_GENERATED = \
-		$(srcdir)/remote/remote_protocol.c		\
-		$(srcdir)/remote/remote_protocol.h		\
-		$(srcdir)/remote/remote_client_bodies.h		\
-		$(srcdir)/remote/lxc_protocol.c			\
-		$(srcdir)/remote/lxc_protocol.h			\
-		$(srcdir)/remote/lxc_client_bodies.h		\
-		$(srcdir)/remote/qemu_protocol.c		\
-		$(srcdir)/remote/qemu_protocol.h		\
-		$(srcdir)/remote/qemu_client_bodies.h
+		remote/remote_protocol.c		\
+		remote/remote_protocol.h		\
+		remote/remote_client_bodies.h		\
+		remote/lxc_protocol.c			\
+		remote/lxc_protocol.h			\
+		remote/lxc_client_bodies.h		\
+		remote/qemu_protocol.c			\
+		remote/qemu_protocol.h			\
+		remote/qemu_client_bodies.h		\
+		$(NULL)
 
 REMOTE_PROTOCOL = $(srcdir)/remote/remote_protocol.x
 LXC_PROTOCOL = $(srcdir)/remote/lxc_protocol.x
 QEMU_PROTOCOL = $(srcdir)/remote/qemu_protocol.x
 REMOTE_DRIVER_PROTOCOL = $(REMOTE_PROTOCOL) $(QEMU_PROTOCOL) $(LXC_PROTOCOL)
 
-$(srcdir)/remote/remote_client_bodies.h: $(srcdir)/rpc/gendispatch.pl \
+remote/remote_client_bodies.h: $(srcdir)/rpc/gendispatch.pl \
 		$(REMOTE_PROTOCOL) Makefile.am
 	$(AM_V_GEN)$(PERL) -w $(srcdir)/rpc/gendispatch.pl --mode=client \
-	  remote REMOTE $(REMOTE_PROTOCOL) > $@
+	  remote REMOTE $(REMOTE_PROTOCOL) \
+	  > $(srcdir)/remote/remote_client_bodies.h
 
-$(srcdir)/remote/lxc_client_bodies.h: $(srcdir)/rpc/gendispatch.pl \
+remote/lxc_client_bodies.h: $(srcdir)/rpc/gendispatch.pl \
 		$(LXC_PROTOCOL) Makefile.am
 	$(AM_V_GEN)$(PERL) -w $(srcdir)/rpc/gendispatch.pl --mode=client \
-	  lxc LXC $(LXC_PROTOCOL) > $@
+	  lxc LXC $(LXC_PROTOCOL) \
+	  > $(srcdir)/remote/lxc_client_bodies.h
 
-$(srcdir)/remote/qemu_client_bodies.h: $(srcdir)/rpc/gendispatch.pl \
+remote/qemu_client_bodies.h: $(srcdir)/rpc/gendispatch.pl \
 		$(QEMU_PROTOCOL) Makefile.am
 	$(AM_V_GEN)$(PERL) -w $(srcdir)/rpc/gendispatch.pl --mode=client \
-	  qemu QEMU $(QEMU_PROTOCOL) > $@
+	  qemu QEMU $(QEMU_PROTOCOL) \
+	  > $(srcdir)/remote/qemu_client_bodies.h
 
 REMOTE_DRIVER_SOURCES =						\
 		gnutls_1_0_compat.h				\
@@ -360,19 +368,20 @@ EXTRA_DIST +=  $(REMOTE_DRIVER_PROTOCOL) \
 # The alternation of the following regexps matches both cases.
 r1 = /\* \d+ \*/
 r2 = /\* <[[:xdigit:]]+> \S+:\d+ \*/
-struct_prefix = (remote_|qemu_|lxc_|virNet|keepalive_)
+struct_prefix = (remote_|qemu_|lxc_|keepalive|vir(Net|LockSpace|LXCMonitor))
 
 # Depending on configure options, libtool creates one or both of
-# {,.libs/}libvirt_remote_driver_la-remote_protocol.o.  We want the
-# newest of the two, in case configure options changed and a stale
+# remote/{,.libs/}libvirt_driver_remote_la-remote_protocol.o.  We want
+# the newest of the two, in case configure options changed and a stale
 # file is left around from an earlier build.
 PDWTAGS = \
 	$(AM_V_GEN)if (pdwtags --help) > /dev/null 2>&1; then		\
-	  o=`ls -t $(<:.lo=.$(OBJEXT)) .libs/$(<:.lo=.$(OBJEXT))	\
+	  o=`ls -t $(<:.lo=.$(OBJEXT))					\
+	     $(subst /,/.libs/,$(<:.lo=.$(OBJEXT)))			\
 	    2>/dev/null | sed -n 1p`;					\
 	  test -f "$$o" || { echo ".o for $< not found" >&2; exit 1; };	\
 	  pdwtags --verbose $$o > $(@F)-t1 2> $(@F)-t2;			\
-	  if test -s $(@F)-t2; then					\
+	  if test ! -s $(@F)-t1 && test -s $(@F)-t2; then		\
 	    rm -rf $(@F)-t?;						\
 	    echo 'WARNING: pdwtags appears broken; skipping the $@ test' >&2;\
 	  else								\
@@ -422,12 +431,17 @@ check-symsorting:
 		$(srcdir) $(SYM_FILES)
 EXTRA_DIST += check-symfile.pl check-symsorting.pl
 
+# Keep this list synced with RPC_PROBE_FILES
 PROTOCOL_STRUCTS = \
 	$(srcdir)/remote_protocol-structs \
 	$(srcdir)/lxc_protocol-structs \
 	$(srcdir)/qemu_protocol-structs \
 	$(srcdir)/virnetprotocol-structs \
-	$(srcdir)/virkeepaliveprotocol-structs
+	$(srcdir)/virkeepaliveprotocol-structs \
+	$(srcdir)/lxc_monitor_protocol-structs \
+	$(srcdir)/lock_protocol-structs \
+	$(NULL)
+
 if WITH_REMOTE
 check-protocol: $(PROTOCOL_STRUCTS) $(PROTOCOL_STRUCTS:structs=struct)
 
@@ -436,11 +450,18 @@ check-protocol: $(PROTOCOL_STRUCTS) $(PROTOCOL_STRUCTS:structs=struct)
 $(srcdir)/remote_protocol-struct \
 	$(srcdir)/qemu_protocol-struct \
 	$(srcdir)/lxc_protocol-struct: \
-		$(srcdir)/%-struct: libvirt_driver_remote_la-%.lo
+		$(srcdir)/%-struct: remote/libvirt_driver_remote_la-%.lo
 	$(PDWTAGS)
 $(srcdir)/virnetprotocol-struct $(srcdir)/virkeepaliveprotocol-struct: \
-		$(srcdir)/%-struct: libvirt_net_rpc_la-%.lo
+		$(srcdir)/%-struct: rpc/libvirt_net_rpc_la-%.lo
 	$(PDWTAGS)
+$(srcdir)/lxc_monitor_protocol-struct: \
+		$(srcdir)/%-struct: lxc/libvirt_driver_lxc_impl_la-%.lo
+	$(PDWTAGS)
+$(srcdir)/lock_protocol-struct: \
+		$(srcdir)/%-struct: locking/lockd_la-%.lo
+	$(PDWTAGS)
+
 else !WITH_REMOTE
 # The $(PROTOCOL_STRUCTS) files must live in git, because they cannot be
 # re-generated when configured --without-remote.
@@ -511,10 +532,16 @@ check-aclrules:
 		$(REMOTE_PROTOCOL) \
 		$(addprefix $(srcdir)/,$(filter-out /%,$(STATEFUL_DRIVER_SOURCE_FILES)))
 
-EXTRA_DIST += check-driverimpls.pl check-aclrules.pl
+check-aclperms:
+	$(AM_V_GEN)$(PERL) $(srcdir)/check-aclperms.pl \
+		$(srcdir)/access/viraccessperm.h \
+		$(srcdir)/access/viraccessperm.c
+
+EXTRA_DIST += check-driverimpls.pl check-aclrules.pl check-aclperms.pl
 
 check-local: check-protocol check-symfile check-symsorting \
-	check-drivername check-driverimpls check-aclrules
+	check-drivername check-driverimpls check-aclrules \
+	check-aclperms
 .PHONY: check-protocol $(PROTOCOL_STRUCTS:structs=struct)
 
 # Mock driver, covering domains, storage, networks, etc
@@ -534,16 +561,16 @@ XEN_DRIVER_SOURCES += xen/xen_inotify.c xen/xen_inotify.h
 endif WITH_XEN_INOTIFY
 
 LXC_MONITOR_PROTOCOL_GENERATED = \
-	$(srcdir)/lxc/lxc_monitor_protocol.h \
-	$(srcdir)/lxc/lxc_monitor_protocol.c \
+	lxc/lxc_monitor_protocol.h \
+	lxc/lxc_monitor_protocol.c \
 	$(NULL)
 
 LXC_MONITOR_GENERATED = \
-	$(srcdir)/lxc/lxc_monitor_dispatch.h \
+	lxc/lxc_monitor_dispatch.h \
 	$(NULL)
 
 LXC_CONTROLLER_GENERATED = \
-	$(srcdir)/lxc/lxc_controller_dispatch.h \
+	lxc/lxc_controller_dispatch.h \
 	$(NULL)
 
 LXC_GENERATED = \
@@ -554,15 +581,17 @@ LXC_GENERATED = \
 
 LXC_MONITOR_PROTOCOL = $(srcdir)/lxc/lxc_monitor_protocol.x
 
-$(srcdir)/lxc/lxc_monitor_dispatch.h: $(srcdir)/rpc/gendispatch.pl \
+lxc/lxc_monitor_dispatch.h: $(srcdir)/rpc/gendispatch.pl \
 		$(LXC_MONITOR_PROTOCOL) Makefile.am
 	$(AM_V_GEN)$(PERL) -w $(srcdir)/rpc/gendispatch.pl --mode=client \
-	  virLXCMonitor VIR_LXC_MONITOR $(LXC_MONITOR_PROTOCOL) > $@
+	  virLXCMonitor VIR_LXC_MONITOR $(LXC_MONITOR_PROTOCOL) > \
+	  $(srcdir)/lxc/lxc_monitor_dispatch.h
 
-$(srcdir)/lxc/lxc_controller_dispatch.h: $(srcdir)/rpc/gendispatch.pl \
+lxc/lxc_controller_dispatch.h: $(srcdir)/rpc/gendispatch.pl \
 		$(REMOTE_PROTOCOL) Makefile.am
 	$(AM_V_GEN)$(PERL) -w $(srcdir)/rpc/gendispatch.pl --mode=server \
-	  virLXCMonitor VIR_LXC_MONITOR $(LXC_MONITOR_PROTOCOL) > $@
+	  virLXCMonitor VIR_LXC_MONITOR $(LXC_MONITOR_PROTOCOL) > \
+	  $(srcdir)/lxc/lxc_controller_dispatch.h
 
 EXTRA_DIST += \
 	$(LXC_MONITOR_PROTOCOL) \
@@ -824,12 +853,13 @@ SECURITY_DRIVER_APPARMOR_SOURCES =				\
 		security/security_apparmor.h security/security_apparmor.c
 
 ACCESS_DRIVER_GENERATED = \
-		$(srcdir)/access/viraccessapicheck.h \
-		$(srcdir)/access/viraccessapicheck.c \
-		$(srcdir)/access/viraccessapicheckqemu.h \
-		$(srcdir)/access/viraccessapicheckqemu.c \
-		$(srcdir)/access/viraccessapichecklxc.h \
-		$(srcdir)/access/viraccessapichecklxc.c
+		access/viraccessapicheck.h \
+		access/viraccessapicheck.c \
+		access/viraccessapicheckqemu.h \
+		access/viraccessapicheckqemu.c \
+		access/viraccessapichecklxc.h \
+		access/viraccessapichecklxc.c \
+		$(NULL)
 
 ACCESS_DRIVER_SYM_FILES = \
 		libvirt_access.syms \
@@ -874,6 +904,7 @@ CPU_SOURCES =							\
 		cpu/cpu_x86.h cpu/cpu_x86.c cpu/cpu_x86_data.h	\
 		cpu/cpu_s390.h cpu/cpu_s390.c			\
 		cpu/cpu_arm.h cpu/cpu_arm.c			\
+		cpu/cpu_aarch64.h cpu/cpu_aarch64.c		\
 		cpu/cpu_map.h cpu/cpu_map.c cpu/cpu_powerpc.h	\
 		cpu/cpu_powerpc.c cpu/cpu_ppc_data.h
 
@@ -988,11 +1019,11 @@ endif WITH_REMOTE
 
 %protocol.c: %protocol.x %protocol.h $(srcdir)/rpc/genprotocol.pl
 	$(AM_V_GEN)$(PERL) -w $(srcdir)/rpc/genprotocol.pl $(RPCGEN) -c \
-	       $< $@
+	       $< $(srcdir)/$(subst $(srcdir)/,,$@)
 
 %protocol.h: %protocol.x $(srcdir)/rpc/genprotocol.pl
 	$(AM_V_GEN)$(PERL) -w $(srcdir)/rpc/genprotocol.pl $(RPCGEN) -h \
-	       $< $@
+	       $< $(srcdir)/$(subst $(srcdir)/,,$@)
 
 if WITH_XEN
 noinst_LTLIBRARIES += libvirt_driver_xen_impl.la
@@ -1493,6 +1524,10 @@ libvirt_driver_access_la_LIBADD =
 
 EXTRA_DIST += access/genpolkit.pl
 
+$(ACCESS_DRIVER_POLKIT_POLICY): $(srcdir)/access/viraccessperm.h \
+    $(srcdir)/access/genpolkit.pl Makefile.am
+	$(AM_V_GEN)$(PERL) $(srcdir)/access/genpolkit.pl < $< > $@ || rm -f $@
+
 if WITH_POLKIT1
 libvirt_driver_access_la_SOURCES += $(ACCESS_DRIVER_POLKIT_SOURCES)
 
@@ -1500,10 +1535,6 @@ polkitactiondir = $(datadir)/polkit-1/actions
 if WITH_LIBVIRTD
 polkitaction_DATA = $(ACCESS_DRIVER_POLKIT_POLICY)
 endif WITH_LIBVIRTD
-
-$(ACCESS_DRIVER_POLKIT_POLICY): $(srcdir)/access/viraccessperm.h \
-    $(srcdir)/access/genpolkit.pl Makefile.am
-	$(AM_V_GEN)$(PERL) $(srcdir)/access/genpolkit.pl < $< > $@ || rm -f $@
 
 CLEANFILES += $(ACCESS_DRIVER_POLKIT_POLICY)
 BUILT_SOURCES += $(ACCESS_DRIVER_POLKIT_POLICY)
@@ -1541,32 +1572,38 @@ libvirt_access_lxc.xml: $(srcdir)/rpc/gendispatch.pl \
 	$(AM_V_GEN)$(PERL) -w $(srcdir)/rpc/gendispatch.pl --mode=aclapi \
 	  lxc LXC $(LXC_PROTOCOL) > $@
 
-$(srcdir)/access/viraccessapicheck.h: $(srcdir)/rpc/gendispatch.pl \
+access/viraccessapicheck.h: $(srcdir)/rpc/gendispatch.pl \
 			$(REMOTE_PROTOCOL) Makefile.am
 	$(AM_V_GEN)$(PERL) -w $(srcdir)/rpc/gendispatch.pl --mode=aclheader \
-	  remote REMOTE $(REMOTE_PROTOCOL) > $@
-$(srcdir)/access/viraccessapicheck.c: $(srcdir)/rpc/gendispatch.pl \
+	  remote REMOTE $(REMOTE_PROTOCOL) \
+	  > $(srcdir)/access/viraccessapicheck.h
+access/viraccessapicheck.c: $(srcdir)/rpc/gendispatch.pl \
 			$(REMOTE_PROTOCOL) Makefile.am
 	$(AM_V_GEN)$(PERL) -w $(srcdir)/rpc/gendispatch.pl --mode=aclbody \
-	  remote REMOTE $(REMOTE_PROTOCOL) access/viraccessapicheck.h > $@
+	  remote REMOTE $(REMOTE_PROTOCOL) access/viraccessapicheck.h \
+	  > $(srcdir)/access/viraccessapicheck.c
 
-$(srcdir)/access/viraccessapicheckqemu.h: $(srcdir)/rpc/gendispatch.pl \
+access/viraccessapicheckqemu.h: $(srcdir)/rpc/gendispatch.pl \
 			$(QEMU_PROTOCOL) Makefile.am
 	$(AM_V_GEN)$(PERL) -w $(srcdir)/rpc/gendispatch.pl --mode=aclheader \
-	  qemu QEMU $(QEMU_PROTOCOL) > $@
-$(srcdir)/access/viraccessapicheckqemu.c: $(srcdir)/rpc/gendispatch.pl \
+	  qemu QEMU $(QEMU_PROTOCOL) \
+	  > $(srcdir)/access/viraccessapicheckqemu.h
+access/viraccessapicheckqemu.c: $(srcdir)/rpc/gendispatch.pl \
 			$(QEMU_PROTOCOL) Makefile.am
 	$(AM_V_GEN)$(PERL) -w $(srcdir)/rpc/gendispatch.pl --mode=aclbody \
-	  qemu QEMU $(QEMU_PROTOCOL) access/viraccessapicheckqemu.h > $@
+	  qemu QEMU $(QEMU_PROTOCOL) access/viraccessapicheckqemu.h \
+	  > $(srcdir)/access/viraccessapicheckqemu.c
 
-$(srcdir)/access/viraccessapichecklxc.h: $(srcdir)/rpc/gendispatch.pl \
+access/viraccessapichecklxc.h: $(srcdir)/rpc/gendispatch.pl \
 			$(LXC_PROTOCOL) Makefile.am
 	$(AM_V_GEN)$(PERL) -w $(srcdir)/rpc/gendispatch.pl --mode=aclheader \
-	  lxc LXC $(LXC_PROTOCOL) > $@
-$(srcdir)/access/viraccessapichecklxc.c: $(srcdir)/rpc/gendispatch.pl \
+	  lxc LXC $(LXC_PROTOCOL) \
+	  > $(srcdir)/access/viraccessapichecklxc.h
+access/viraccessapichecklxc.c: $(srcdir)/rpc/gendispatch.pl \
 			$(LXC_PROTOCOL) Makefile.am
 	$(AM_V_GEN)$(PERL) -w $(srcdir)/rpc/gendispatch.pl --mode=aclbody \
-	  lxc LXC $(LXC_PROTOCOL) access/viraccessapichecklxc.h > $@
+	  lxc LXC $(LXC_PROTOCOL) access/viraccessapichecklxc.h \
+	  > $(srcdir)/access/viraccessapichecklxc.c
 
 # Add all conditional sources just in case...
 EXTRA_DIST +=							\
@@ -1724,6 +1761,12 @@ else ! WITH_LIBVIRTD
 SYM_FILES += $(srcdir)/libvirt_daemon.syms
 endif ! WITH_LIBVIRTD
 
+if WITH_REMOTE
+USED_SYM_FILES += $(srcdir)/libvirt_remote.syms
+else ! WITH_REMOTE
+SYM_FILES += $(srcdir)/libvirt_remote.syms
+endif ! WITH_REMOTE
+
 if WITH_OPENVZ
 USED_SYM_FILES += $(srcdir)/libvirt_openvz.syms
 else ! WITH_OPENVZ
@@ -1735,6 +1778,12 @@ USED_SYM_FILES += $(srcdir)/libvirt_vmx.syms
 else ! WITH_VMX
 SYM_FILES += $(srcdir)/libvirt_vmx.syms
 endif ! WITH_VMX
+
+if WITH_VMWARE
+USED_SYM_FILES += $(srcdir)/libvirt_vmware.syms
+else ! WITH_VMWARE
+SYM_FILES += $(srcdir)/libvirt_vmware.syms
+endif ! WITH_VMWARE
 
 if WITH_XENXS
 USED_SYM_FILES += $(srcdir)/libvirt_xenxs.syms
@@ -1873,6 +1922,7 @@ tapset_DATA = libvirt_probes.stp libvirt_qemu_probes.stp libvirt_functions.stp
 	  "non_pic_object='$<'" \
 	> $@
 
+# Keep this list synced with PROTOCOL_STRUCTS
 RPC_PROBE_FILES = $(srcdir)/rpc/virnetprotocol.x \
 		  $(srcdir)/rpc/virkeepaliveprotocol.x \
 		  $(srcdir)/remote/remote_protocol.x \
@@ -1919,6 +1969,79 @@ libvirt_lxc_la_LDFLAGS = \
 		$(NULL)
 libvirt_lxc_la_CFLAGS = $(AM_CFLAGS)
 libvirt_lxc_la_LIBADD = libvirt.la $(CYGWIN_EXTRA_LIBADD)
+
+# Since virt-login-shell will be setuid, we must do everything
+# we can to avoid linking to other libraries. Many of them do
+# unsafe things in functions marked __atttribute__((constructor)).
+# This library is built to include the bare minimum required to
+# have a RPC client for local UNIX socket access only. We use
+# the ../config-post.h header to disable all external deps that
+# we don't want
+if WITH_LXC
+noinst_LTLIBRARIES += libvirt-setuid-rpc-client.la
+
+libvirt_setuid_rpc_client_la_SOURCES = 		\
+		util/viralloc.c			\
+		util/viratomic.c		\
+		util/viratomic.h		\
+		util/virbitmap.c		\
+		util/virbuffer.c		\
+		util/vircommand.c		\
+		util/virconf.c			\
+		util/virerror.c			\
+		util/virevent.c			\
+		util/vireventpoll.c		\
+		util/virfile.c			\
+		util/virhash.c			\
+		util/virhashcode.c		\
+		util/virjson.c			\
+		util/virlog.c			\
+		util/virobject.c		\
+		util/virpidfile.c		\
+		util/virprocess.c		\
+		util/virrandom.c		\
+		util/virsocketaddr.c		\
+		util/virstoragefile.c		\
+		util/virstring.c		\
+		util/virtime.c			\
+		util/virthread.c		\
+		util/virtypedparam.c		\
+		util/viruri.c			\
+		util/virutil.c			\
+		util/viruuid.c			\
+		conf/domain_event.c		\
+		rpc/virnetsocket.c		\
+		rpc/virnetsocket.h		\
+		rpc/virnetmessage.h		\
+		rpc/virnetmessage.c		\
+		rpc/virkeepalive.c		\
+		rpc/virkeepalive.h		\
+		rpc/virnetclient.c		\
+		rpc/virnetclientprogram.c	\
+		rpc/virnetclientstream.c	\
+		rpc/virnetprotocol.c		\
+		remote/remote_driver.c		\
+		remote/remote_protocol.c	\
+		remote/qemu_protocol.c		\
+		remote/lxc_protocol.c		\
+		datatypes.c			\
+		libvirt.c			\
+		libvirt-lxc.c			\
+		$(NULL)
+
+libvirt_setuid_rpc_client_la_LDFLAGS =		\
+		$(AM_LDFLAGS)			\
+		$(LIBXML_LIBS)			\
+		$(SECDRIVER_LIBS)		\
+		$(NULL)
+libvirt_setuid_rpc_client_la_CFLAGS =		\
+		-DLIBVIRT_SETUID_RPC_CLIENT	\
+		-I$(top_srcdir)/src/conf	\
+		-I$(top_srcdir)/src/rpc		\
+		$(AM_CFLAGS)			\
+		$(SECDRIVER_CFLAGS)		\
+		$(NULL)
+endif WITH_LXC
 
 lockdriverdir = $(libdir)/libvirt/lock-driver
 lockdriver_LTLIBRARIES =
@@ -2155,19 +2278,18 @@ EXTRA_DIST += \
 	rpc/virkeepaliveprotocol.x
 
 VIR_NET_RPC_GENERATED = \
-	$(srcdir)/rpc/virnetprotocol.h \
-	$(srcdir)/rpc/virnetprotocol.c \
-	$(srcdir)/rpc/virkeepaliveprotocol.h \
-	$(srcdir)/rpc/virkeepaliveprotocol.c
+	rpc/virnetprotocol.h \
+	rpc/virnetprotocol.c \
+	rpc/virkeepaliveprotocol.h \
+	rpc/virkeepaliveprotocol.c
 
 BUILT_SOURCES += $(VIR_NET_RPC_GENERATED)
 
 libvirt_net_rpc_la_SOURCES = \
 	rpc/virnetmessage.h rpc/virnetmessage.c \
-	rpc/virnetprotocol.h rpc/virnetprotocol.c \
 	rpc/virnetsocket.h rpc/virnetsocket.c \
-	rpc/virkeepaliveprotocol.h rpc/virkeepaliveprotocol.c \
-	rpc/virkeepalive.h rpc/virkeepalive.c
+	rpc/virkeepalive.h rpc/virkeepalive.c \
+	$(VIR_NET_RPC_GENERATED)
 if WITH_SSH2
 libvirt_net_rpc_la_SOURCES += \
 	rpc/virnetsshsession.h rpc/virnetsshsession.c
@@ -2199,6 +2321,7 @@ libvirt_net_rpc_la_LDFLAGS = \
 			$(GNUTLS_LIBS) \
 			$(SASL_LIBS) \
 			$(SSH2_LIBS)\
+			$(SECDRIVER_LIBS) \
 			$(AM_LDFLAGS) \
 			$(CYGWIN_EXTRA_LDFLAGS) \
 			$(MINGW_EXTRA_LDFLAGS)
@@ -2336,17 +2459,13 @@ libvirt_lxc_CFLAGS =				\
 		$(PIE_CFLAGS)			\
 		$(LIBNL_CFLAGS)			\
 		$(FUSE_CFLAGS)			\
+		$(DBUS_CFLAGS)			\
 		$(NULL)
 if WITH_BLKID
 libvirt_lxc_CFLAGS += $(BLKID_CFLAGS)
 libvirt_lxc_LDADD += $(BLKID_LIBS)
 endif WITH_BLKID
-if WITH_SECDRIVER_SELINUX
-libvirt_lxc_CFLAGS += $(SELINUX_CFLAGS)
-endif WITH_SECDRIVER_SELINUX
-if WITH_SECDRIVER_APPARMOR
-libvirt_lxc_CFLAGS += $(APPARMOR_CFLAGS)
-endif WITH_SECDRIVER_APPARMOR
+libvirt_lxc_CFLAGS += $(SECDRIVER_CFLAGS)
 endif WITH_LIBVIRTD
 endif WITH_LXC
 EXTRA_DIST += $(LXC_CONTROLLER_SOURCES)

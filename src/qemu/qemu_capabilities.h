@@ -196,14 +196,15 @@ enum virQEMUCapsFlags {
     QEMU_CAPS_DEVICE_USB_STORAGE = 155, /* -device usb-storage */
     QEMU_CAPS_USB_STORAGE_REMOVABLE = 156, /* usb-storage.removable */
     QEMU_CAPS_DEVICE_VIRTIO_MMIO = 157, /* -device virtio-mmio */
-
-    QEMU_CAPS_MIGRATE_QEMU_X_RDMA  = 158, /* have qemu x-rdma migration */
-    QEMU_CAPS_MIGRATE_QEMU_MC    = 159, /* have qemu micro-checkpointing */
+    QEMU_CAPS_DEVICE_ICH9_INTEL_HDA = 158, /* -device ich9-intel-hda */
+    QEMU_CAPS_KVM_PIT_TICK_POLICY = 159, /* kvm-pit.lost_tick_policy */
+    QEMU_CAPS_MIGRATE_QEMU_RDMA  = 160, /* have qemu rdma migration */
+    QEMU_CAPS_MIGRATE_QEMU_MC    = 161, /* have qemu micro-checkpointing */
 
     QEMU_CAPS_LAST,                   /* this must always be the last item */
 };
 
-#define MIN_X_RDMA_VERSION 1005000
+#define MIN_RDMA_VERSION 1005000
 #define MIN_MC_VERSION 1005000
 
 typedef struct _virQEMUCaps virQEMUCaps;
@@ -218,6 +219,9 @@ virQEMUCapsPtr virQEMUCapsNewForBinary(const char *binary,
                                        const char *libDir,
                                        uid_t runUid,
                                        gid_t runGid);
+
+int virQEMUCapsInitQMPMonitor(virQEMUCapsPtr qemuCaps,
+                              qemuMonitorPtr mon);
 
 int virQEMUCapsProbeQMP(virQEMUCapsPtr qemuCaps,
                         qemuMonitorPtr mon);

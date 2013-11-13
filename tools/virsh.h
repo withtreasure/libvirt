@@ -148,6 +148,8 @@ typedef struct _vshCmdOptDef vshCmdOptDef;
 typedef struct _vshControl vshControl;
 typedef struct _vshCtrlData vshCtrlData;
 
+typedef char **(*vshCompleter)(unsigned int flags);
+
 /*
  * vshCmdInfo -- name/value pair for information about command
  *
@@ -169,6 +171,8 @@ struct _vshCmdOptDef {
     unsigned int flags;         /* flags */
     const char *help;           /* non-NULL help string; or for VSH_OT_ALIAS
                                  * the name of a later public option */
+    vshCompleter completer;         /* option completer */
+    unsigned int completer_flags;   /* option completer flags */
 };
 
 /*
@@ -361,6 +365,8 @@ bool vshTTYIsInterruptCharacter(vshControl *ctl, const char chr);
 int vshTTYDisableInterrupt(vshControl *ctl);
 int vshTTYRestore(vshControl *ctl);
 int vshTTYMakeRaw(vshControl *ctl, bool report_errors);
+bool vshTTYAvailable(vshControl *ctl);
+
 
 /* allocation wrappers */
 void *_vshMalloc(vshControl *ctl, size_t sz, const char *filename, int line);

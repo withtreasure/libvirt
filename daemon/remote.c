@@ -666,7 +666,10 @@ void remoteClientFreeFunc(void *data)
 
     /* Deregister event delivery callback */
     if (priv->conn) {
+        virIdentityPtr sysident = virIdentityGetSystem();
         size_t i;
+
+        virIdentitySetCurrent(sysident);
 
         for (i = 0; i < VIR_DOMAIN_EVENT_ID_LAST; i++) {
             if (priv->domainEventCallbackID[i] != -1) {
@@ -678,6 +681,9 @@ void remoteClientFreeFunc(void *data)
         }
 
         virConnectClose(priv->conn);
+
+        virIdentitySetCurrent(NULL);
+        virObjectUnref(sysident);
     }
 
     VIR_FREE(priv);
@@ -1146,7 +1152,7 @@ remoteDispatchDomainMemoryStats(virNetServerPtr server ATTRIBUTE_UNUSED,
                                 remote_domain_memory_stats_ret *ret)
 {
     virDomainPtr dom = NULL;
-    struct _virDomainMemoryStat *stats;
+    struct _virDomainMemoryStat *stats = NULL;
     int nr_stats;
     size_t i;
     int rv = -1;
@@ -2742,6 +2748,9 @@ remoteDispatchAuthPolkit(virNetServerPtr server ATTRIBUTE_UNUSED,
     struct daemonClientPrivate *priv =
         virNetServerClientGetPrivateData(client);
     virCommandPtr cmd = NULL;
+# ifndef PKCHECK_SUPPORTS_UID
+    static bool polkitInsecureWarned;
+# endif
 
     virMutexLock(&priv->lock);
     action = virNetServerClientGetReadonly(client) ?
@@ -2763,15 +2772,31 @@ remoteDispatchAuthPolkit(virNetServerPtr server ATTRIBUTE_UNUSED,
         goto authfail;
     }
 
+    if (timestamp == 0) {
+        VIR_WARN("Failing polkit auth due to missing client (pid=%lld) start time",
+                 (long long)callerPid);
+        goto authfail;
+    }
+
     VIR_INFO("Checking PID %lld running as %d",
              (long long) callerPid, callerUid);
 
     virCommandAddArg(cmd, "--process");
-    if (timestamp != 0) {
-        virCommandAddArgFormat(cmd, "%lld,%llu", (long long) callerPid, timestamp);
-    } else {
-        virCommandAddArgFormat(cmd, "%lld", (long long) callerPid);
+
+# ifdef PKCHECK_SUPPORTS_UID
+    virCommandAddArgFormat(cmd, "%lld,%llu,%lu",
+                           (long long) callerPid,
+                           timestamp,
+                           (unsigned long) callerUid);
+# else
+    if (!polkitInsecureWarned) {
+        VIR_WARN("No support for caller UID with pkcheck. "
+                 "This deployment is known to be insecure.");
+        polkitInsecureWarned = true;
     }
+    virCommandAddArgFormat(cmd, "%lld,%llu", (long long) callerPid, timestamp);
+# endif
+
     virCommandAddArg(cmd, "--allow-user-interaction");
 
     if (virAsprintf(&ident, "pid:%lld,uid:%d",
@@ -4618,7 +4643,8 @@ lxcDispatchDomainOpenNamespace(virNetServerPtr server ATTRIBUTE_UNUSED,
 cleanup:
     if (rv < 0)
         virNetMessageSaveError(rerr);
-    virDomainFree(dom);
+    if (dom)
+        virDomainFree(dom);
     return rv;
 }
 
@@ -5032,6 +5058,58 @@ cleanup:
         virNetMessageSaveError(rerr);
     if (dom)
         virDomainFree(dom);
+    return rv;
+}
+
+
+static int
+remoteDispatchConnectGetCPUModelNames(virNetServerPtr server ATTRIBUTE_UNUSED,
+                                      virNetServerClientPtr client ATTRIBUTE_UNUSED,
+                                      virNetMessagePtr msg ATTRIBUTE_UNUSED,
+                                      virNetMessageErrorPtr rerr,
+                                      remote_connect_get_cpu_model_names_args *args,
+                                      remote_connect_get_cpu_model_names_ret *ret)
+{
+    int len, rv = -1;
+    char **models = NULL;
+    struct daemonClientPrivate *priv =
+        virNetServerClientGetPrivateData(client);
+
+    if (!priv->conn) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("connection not open"));
+        goto cleanup;
+    }
+
+    len = virConnectGetCPUModelNames(priv->conn, args->arch,
+                                     args->need_results ? &models : NULL,
+                                     args->flags);
+    if (len < 0)
+        goto cleanup;
+
+    if (len > REMOTE_CONNECT_CPU_MODELS_MAX) {
+        virReportError(VIR_ERR_RPC,
+                       _("Too many CPU models '%d' for limit '%d'"),
+                       len, REMOTE_CONNECT_CPU_MODELS_MAX);
+        goto cleanup;
+    }
+
+    if (len && models) {
+        ret->models.models_val = models;
+        ret->models.models_len = len;
+        models = NULL;
+    } else {
+        ret->models.models_val = NULL;
+        ret->models.models_len = 0;
+    }
+
+    ret->ret = len;
+
+    rv = 0;
+
+cleanup:
+    if (rv < 0)
+        virNetMessageSaveError(rerr);
+    virStringFreeList(models);
     return rv;
 }
 

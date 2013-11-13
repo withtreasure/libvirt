@@ -18,6 +18,7 @@
 
 INCLUDES = \
 	-I$(top_builddir)/gnulib/lib -I$(top_srcdir)/gnulib/lib \
+	-I$(top_srcdir) \
 	-I$(top_builddir)/include -I$(top_srcdir)/include \
 	-I$(top_builddir)/src -I$(top_srcdir)/src \
 	-I$(top_srcdir)/src/util \
@@ -29,21 +30,19 @@ INCLUDES = \
 
 CLEANFILES =
 
-DAEMON_GENERATED =					\
-		$(srcdir)/remote_dispatch.h		\
-		$(srcdir)/lxc_dispatch.h		\
-		$(srcdir)/qemu_dispatch.h		\
+DAEMON_GENERATED =			\
+		remote_dispatch.h	\
+		lxc_dispatch.h		\
+		qemu_dispatch.h		\
 		$(NULL)
 
 DAEMON_SOURCES =					\
 		libvirtd.c libvirtd.h			\
-		libvirtd-config.c libvirtd-config.h	\
 		remote.c remote.h			\
 		stream.c stream.h			\
-		../src/remote/remote_protocol.c		\
-		../src/remote/lxc_protocol.c		\
-		../src/remote/qemu_protocol.c		\
 		$(DAEMON_GENERATED)
+
+LIBVIRTD_CONF_SOURCES = libvirtd-config.c libvirtd-config.h
 
 DISTCLEANFILES =
 EXTRA_DIST =						\
@@ -67,7 +66,9 @@ EXTRA_DIST =						\
 	THREADS.txt					\
 	libvirtd.pod.in					\
 	libvirtd.8.in					\
-	$(DAEMON_SOURCES)
+	$(DAEMON_SOURCES)				\
+	$(LIBVIRTD_CONF_SOURCES)			\
+	$(NULL)
 
 BUILT_SOURCES =
 
@@ -75,22 +76,42 @@ REMOTE_PROTOCOL = $(top_srcdir)/src/remote/remote_protocol.x
 LXC_PROTOCOL = $(top_srcdir)/src/remote/lxc_protocol.x
 QEMU_PROTOCOL = $(top_srcdir)/src/remote/qemu_protocol.x
 
-$(srcdir)/remote_dispatch.h: $(srcdir)/../src/rpc/gendispatch.pl \
+remote_dispatch.h: $(srcdir)/../src/rpc/gendispatch.pl \
 		$(REMOTE_PROTOCOL)
 	$(AM_V_GEN)$(PERL) -w $(srcdir)/../src/rpc/gendispatch.pl \
-	  --mode=server remote REMOTE $(REMOTE_PROTOCOL) > $@
+	  --mode=server remote REMOTE $(REMOTE_PROTOCOL) \
+	  > $(srcdir)/remote_dispatch.h
 
-$(srcdir)/lxc_dispatch.h: $(srcdir)/../src/rpc/gendispatch.pl \
+lxc_dispatch.h: $(srcdir)/../src/rpc/gendispatch.pl \
 		$(LXC_PROTOCOL)
 	$(AM_V_GEN)$(PERL) -w $(srcdir)/../src/rpc/gendispatch.pl \
-	  --mode=server lxc LXC $(LXC_PROTOCOL) > $@
+	  --mode=server lxc LXC $(LXC_PROTOCOL) \
+	  > $(srcdir)/lxc_dispatch.h
 
-$(srcdir)/qemu_dispatch.h: $(srcdir)/../src/rpc/gendispatch.pl \
+qemu_dispatch.h: $(srcdir)/../src/rpc/gendispatch.pl \
 		$(QEMU_PROTOCOL)
 	$(AM_V_GEN)$(PERL) -w $(srcdir)/../src/rpc/gendispatch.pl \
-	  --mode=server qemu QEMU $(QEMU_PROTOCOL) > $@
+	  --mode=server qemu QEMU $(QEMU_PROTOCOL) \
+	  > $(srcdir)/qemu_dispatch.h
 
 if WITH_LIBVIRTD
+
+# Build a convenience library, for reuse in tests/libvirtdconftest
+noinst_LTLIBRARIES = libvirtd_conf.la
+libvirtd_conf_la_SOURCES = $(LIBVIRTD_CONF_SOURCES)
+libvirtd_conf_la_CFLAGS = \
+	$(LIBXML_CFLAGS) \
+	$(XDR_CFLAGS) \
+	$(WARN_CFLAGS) $(PIE_CFLAGS) \
+	$(COVERAGE_CFLAGS) \
+	$(NULL)
+libvirtd_conf_la_LDFLAGS =				\
+	$(RELRO_LDFLAGS)				\
+	$(PIE_LDFLAGS)					\
+	$(COVERAGE_LDFLAGS)				\
+	$(NO_INDIRECT_LDFLAGS)				\
+	$(NULL)
+libvirtd_conf_la_LIBADD = $(LIBXML_LIBS)
 
 man8_MANS = libvirtd.8
 
@@ -127,7 +148,6 @@ libvirtd_CFLAGS = \
 libvirtd_LDFLAGS =					\
 	$(RELRO_LDFLAGS)				\
 	$(PIE_LDFLAGS)					\
-	$(RELRO_LDFLAGS)				\
 	$(COVERAGE_LDFLAGS)				\
 	$(NO_INDIRECT_LDFLAGS)				\
 	$(NULL)
@@ -145,8 +165,11 @@ libvirtd_LDADD += ../src/libvirt_probes.lo
 endif WITH_DTRACE_PROBES
 
 libvirtd_LDADD += \
+	libvirtd_conf.la \
 	../src/libvirt-lxc.la \
-	../src/libvirt-qemu.la
+	../src/libvirt-qemu.la \
+	../src/libvirt_driver_remote.la \
+	$(NULL)
 
 if ! WITH_DRIVER_MODULES
 if WITH_QEMU

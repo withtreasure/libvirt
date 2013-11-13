@@ -33,8 +33,9 @@ gnulib_dir = $(srcdir)/.gnulib
 # This is all gnulib files, as well as generated files for RPC code.
 generated_files = \
   $(srcdir)/daemon/*_dispatch.h \
+  $(srcdir)/src/*/*_dispatch.h \
   $(srcdir)/src/remote/*_client_bodies.h \
-  $(srcdir)/src/remote/*_protocol.[ch] \
+  $(srcdir)/src/*/*_protocol.[ch] \
   $(srcdir)/gnulib/lib/*.[ch]
 
 # We haven't converted all scripts to using gnulib's init.sh yet.
@@ -467,6 +468,18 @@ sc_correct_id_types:
 	halt="use pid_t for pid, uid_t for uid, gid_t for gid"		\
 	  $(_sc_search_regexp)
 
+# "const fooPtr a" is the same as "foo * const a", even though it is
+# usually desired to have "foo const *a".  It's easier to just prevent
+# the confusing mix of typedef vs. const placement.
+# Also requires that all 'fooPtr' typedefs are actually pointers.
+sc_forbid_const_pointer_typedef:
+	@prohibit='(^|[^"])const \w*Ptr'				\
+	halt='"const fooPtr var" does not declare what you meant'	\
+	  $(_sc_search_regexp)
+	@prohibit='typedef [^(]+ [^*]\w*Ptr\b'				\
+	halt='use correct style and type for Ptr typedefs'		\
+	  $(_sc_search_regexp)
+
 # Forbid sizeof foo or sizeof (foo), require sizeof(foo)
 sc_size_of_brackets:
 	@prohibit='sizeof\s'						\
@@ -546,12 +559,12 @@ sc_avoid_attribute_unused_in_header:
 	  $(_sc_search_regexp)
 
 sc_prohibit_int_ijk:
-	@prohibit='\<(int|unsigned) ([^(]* )*(i|j|k)(\s|,|;)'		\
+	@prohibit='\<(int|unsigned) ([^(]* )*(i|j|k)\>(\s|,|;)'		\
 	halt='use size_t, not int/unsigned int for loop vars i, j, k'	\
 	  $(_sc_search_regexp)
 
 sc_prohibit_loop_iijjkk:
-	@prohibit='\<(int|unsigned) ([^=]+ )*(ii|jj|kk)(\s|,|;)'	\
+	@prohibit='\<(int|unsigned) ([^=]+ )*(ii|jj|kk)\>(\s|,|;)'	\
 	halt='use i, j, k for loop iterators, not ii, jj, kk' 		\
 	  $(_sc_search_regexp)
 
@@ -850,6 +863,11 @@ sc_prohibit_unbounded_arrays_in_rpc:
 	halt='Arrays in XDR must have a upper limit set for <NNN>'	\
 	  $(_sc_search_regexp)
 
+sc_prohibit_getenv:
+	@prohibit='\b(secure_)?getenv *\('				\
+	exclude='exempt from syntax-check'				\
+	halt='Use virGetEnv{Allow,Block}SUID instead of getenv'		\
+	  $(_sc_search_regexp)
 
 # We don't use this feature of maint.mk.
 prev_version_file = /dev/null
@@ -928,7 +946,7 @@ exclude_file_name_regexp--sc_bindtextdomain = ^(tests|examples)/
 exclude_file_name_regexp--sc_copyright_usage = \
   ^COPYING(|\.LESSER)$$
 
-exclude_file_name_regexp--sc_flags_usage = ^(docs/|src/util/virnetdevtap\.c$$|tests/vircgroupmock\.c$$)
+exclude_file_name_regexp--sc_flags_usage = ^(docs/|src/util/virnetdevtap\.c$$|tests/vir(cgroup|pci)mock\.c$$)
 
 exclude_file_name_regexp--sc_libvirt_unmarked_diagnostics = \
   ^(src/rpc/gendispatch\.pl$$|tests/)
@@ -947,13 +965,13 @@ exclude_file_name_regexp--sc_prohibit_asprintf = \
   ^(bootstrap.conf$$|src/util/virstring\.[ch]$$|examples/domain-events/events-c/event-test\.c$$|tests/vircgroupmock\.c$$)
 
 exclude_file_name_regexp--sc_prohibit_strdup = \
-  ^(docs/|examples/|python/|src/util/virstring\.c$$)
+  ^(docs/|examples/|python/|src/util/virstring\.c|tests/virnetserverclientmock.c$$)
 
 exclude_file_name_regexp--sc_prohibit_close = \
-  (\.p[yl]$$|^docs/|^(src/util/virfile\.c|src/libvirt\.c|tests/vircgroupmock\.c)$$)
+  (\.p[yl]$$|^docs/|^(src/util/virfile\.c|src/libvirt\.c|tests/vir(cgroup|pci)mock\.c)$$)
 
 exclude_file_name_regexp--sc_prohibit_empty_lines_at_EOF = \
-  (^tests/(qemuhelp|nodeinfo)data/|\.(gif|ico|png|diff)$$)
+  (^tests/(qemuhelp|nodeinfo|virpcitest)data/|\.(gif|ico|png|diff)$$)
 
 _src2=src/(util/vircommand|libvirt|lxc/lxc_controller|locking/lock_daemon)
 exclude_file_name_regexp--sc_prohibit_fork_wrappers = \
@@ -1019,3 +1037,6 @@ exclude_file_name_regexp--sc_prohibit_include_public_headers_brackets = \
 
 exclude_file_name_regexp--sc_prohibit_int_ijk = \
   ^(src/remote_protocol-structs|src/remote/remote_protocol.x|cfg.mk|include/)$
+
+exclude_file_name_regexp--sc_prohibit_getenv = \
+  ^tests/.*\.[ch]$$

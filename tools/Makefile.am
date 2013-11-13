@@ -74,7 +74,9 @@ endif WITH_SANLOCK
 if WITH_LXC
 conf_DATA += virt-login-shell.conf
 bin_PROGRAMS += virt-login-shell
-endif WITH_LXC
+else ! WITH_LXC
+EXTRA_DIST += virt-login-shell.conf
+endif ! WITH_LXC
 
 
 dist_man1_MANS = \
@@ -84,7 +86,9 @@ dist_man1_MANS = \
 		virsh.1
 if WITH_LXC
 dist_man1_MANS += virt-login-shell.1
-endif WITH_LXC
+else ! WITH_LXC
+EXTRA_DIST += virt-login-shell.1
+endif ! WITH_LXC
 if WITH_SANLOCK
 dist_man8_MANS = virt-sanlock-cleanup.8
 endif WITH_SANLOCK
@@ -149,6 +153,11 @@ virt_host_validate_CFLAGS = \
 		$(COVERAGE_CFLAGS)				\
 		$(NULL)
 
+# Since virt-login-shell will be setuid, we must do everything
+# we can to avoid linking to other libraries. Many of them do
+# unsafe things in functions marked __atttribute__((constructor)).
+# This we statically link to a library containing only the minimal
+# libvirt client code, not libvirt.so itself.
 virt_login_shell_SOURCES =					\
 		virt-login-shell.c
 
@@ -159,11 +168,11 @@ virt_login_shell_LDFLAGS = \
 virt_login_shell_LDADD =					\
 		$(STATIC_BINARIES)				\
 		$(PIE_LDFLAGS)					\
-		../src/libvirt.la				\
-		../src/libvirt-lxc.la				\
+		../src/libvirt-setuid-rpc-client.la		\
 		../gnulib/lib/libgnu.la
 
 virt_login_shell_CFLAGS =					\
+		-DLIBVIRT_SETUID_RPC_CLIENT			\
 		$(WARN_CFLAGS)					\
 		$(PIE_CFLAGS)					\
 		$(COVERAGE_CFLAGS)

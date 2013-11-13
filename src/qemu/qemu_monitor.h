@@ -32,6 +32,7 @@
 # include "virhash.h"
 # include "virjson.h"
 # include "device_conf.h"
+# include "cpu/cpu.h"
 
 typedef struct _qemuMonitor qemuMonitor;
 typedef qemuMonitor *qemuMonitorPtr;
@@ -450,7 +451,7 @@ int qemuMonitorGetSpiceMigrationStatus(qemuMonitorPtr mon,
 
 typedef enum {
     QEMU_MONITOR_MIGRATION_CAPS_XBZRLE,
-    QEMU_MONITOR_MIGRATION_CAPS_X_RDMA_PIN_ALL,
+    QEMU_MONITOR_MIGRATION_CAPS_RDMA_PIN_ALL,
     QEMU_MONITOR_MIGRATION_CAPS_MC,
 
     QEMU_MONITOR_MIGRATION_CAPS_LAST
@@ -775,6 +776,12 @@ int qemuMonitorDetachCharDev(qemuMonitorPtr mon,
 
 int qemuMonitorGetDeviceAliases(qemuMonitorPtr mon,
                                 char ***aliases);
+
+int qemuMonitorSetDomainLog(qemuMonitorPtr mon, int logfd);
+
+int qemuMonitorGetGuestCPU(qemuMonitorPtr mon,
+                           virArch arch,
+                           virCPUDataPtr *data);
 
 /**
  * When running two dd process and using <> redirection, we need a
