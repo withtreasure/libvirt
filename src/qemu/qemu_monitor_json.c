@@ -2426,6 +2426,7 @@ qemuMonitorJSONGetMigrationStatusReply(virJSONValuePtr reply,
         virJSONValueObjectGetNumberUlong(ram, "normal-bytes",
                                          &status->ram_normal_bytes);
 
+        /*
         if (virJSONValueObjectGetNumberDouble(ram, "mbps",
                                               &status->mbps) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -2433,6 +2434,7 @@ qemuMonitorJSONGetMigrationStatusReply(virJSONValuePtr reply,
                              "data was missing"));
             return -1;
         }
+        */
 
         virJSONValuePtr disk = virJSONValueObjectGet(ret, "disk");
         if (disk) {
@@ -2513,6 +2515,7 @@ qemuMonitorJSONGetMigrationStatusReply(virJSONValuePtr reply,
             }
         }
 
+        /*
         rc = virJSONValueObjectGetNumberUlong(ret, "setup-time",
                                               &status->setup_time);
 
@@ -2521,6 +2524,7 @@ qemuMonitorJSONGetMigrationStatusReply(virJSONValuePtr reply,
                            _("migration was active, but no setup-time was set"));
             return -1;
         }
+        */
 
     }
 
@@ -5546,11 +5550,13 @@ qemuMonitorJSONGetCPUx86Data(qemuMonitorPtr mon,
         goto cleanup;
 
     /* check if device exists */
-    if ((data = virJSONValueObjectGet(reply, "error")) &&
-        STREQ_NULLABLE(virJSONValueObjectGetString(data, "class"),
-                       "DeviceNotFound")) {
-        ret = -2;
-        goto cleanup;
+    if ((data = virJSONValueObjectGet(reply, "error"))) {
+        const char *klass = virJSONValueObjectGetString(data, "class");
+        if (STREQ_NULLABLE(klass, "DeviceNotFound") ||
+            STREQ_NULLABLE(klass, "CommandNotFound")) {
+            ret = -2;
+            goto cleanup;
+        }
     }
 
     if (qemuMonitorJSONCheckError(cmd, reply))
