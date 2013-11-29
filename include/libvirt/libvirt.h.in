@@ -1194,6 +1194,9 @@ typedef enum {
     VIR_MIGRATE_ABORT_ON_ERROR    = (1 << 12), /* abort migration on I/O errors happened during migration */
     VIR_MIGRATE_RDMA_PIN_ALL      = (1 << 13), /* RDMA memory pinning */
     VIR_MIGRATE_MC                = (1 << 14), /* Micro Checkpointing */
+    VIR_MIGRATE_MC_NET_DISABLE    = (1 << 15), /* Disable Micro Checkpointing Network Buffering */
+    VIR_MIGRATE_MC_RDMA_COPY      = (1 << 16), /* Use DMA instead of Memcpy during Micro Checkpointing */
+    VIR_MIGRATE_RDMA_KEEPALIVE    = (1 << 17), /* Keepalive support for RDMA (failure detection) */
 } virDomainMigrateFlags;
 
 
@@ -1316,6 +1319,10 @@ int virDomainMigrateToURI3(virDomainPtr domain,
 
 int virDomainMigrateSetMaxDowntime (virDomainPtr domain,
                                     unsigned long long downtime,
+                                    unsigned int flags);
+
+int virDomainMigrateSetMCDelay (virDomainPtr domain,
+                                    unsigned long long mcdelay,
                                     unsigned int flags);
 
 int virDomainMigrateGetCompressionCache(virDomainPtr domain,

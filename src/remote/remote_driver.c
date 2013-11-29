@@ -7024,6 +7024,7 @@ static virDriver remote_driver = {
     .domainMigrateFinish3Params = remoteDomainMigrateFinish3Params, /* 1.1.0 */
     .domainMigrateConfirm3Params = remoteDomainMigrateConfirm3Params, /* 1.1.0 */
     .connectGetCPUModelNames = remoteConnectGetCPUModelNames, /* 1.1.3 */
+    .domainMigrateSetMCDelay = remoteDomainMigrateSetMCDelay, /* 1.2.0 */
 };
 
 static virNetworkDriver network_driver = {

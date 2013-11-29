@@ -2849,6 +2849,12 @@ struct remote_connect_get_cpu_model_names_ret {
     int ret;
 };
 
+struct remote_domain_migrate_set_mc_delay_args {
+    remote_nonnull_domain dom;
+    unsigned hyper mcdelay;
+    unsigned int flags;
+};
+
 /*----- Protocol. -----*/
 
 /* Define the program number, protocol version and procedure numbers here. */
@@ -5018,5 +5024,11 @@ enum remote_procedure {
      * @generate: none
      * @acl: connect:read
      */
-    REMOTE_PROC_CONNECT_GET_CPU_MODEL_NAMES = 312
+    REMOTE_PROC_CONNECT_GET_CPU_MODEL_NAMES = 312,
+
+    /**
+     * @generate: both
+     * @acl: none 
+     */
+    REMOTE_PROC_DOMAIN_MIGRATE_SET_MCDELAY = 313
 };

@@ -707,6 +707,11 @@ typedef int
                                      unsigned int flags);
 
 typedef int
+(*virDrvDomainMigrateSetMCDelay)(virDomainPtr domain,
+                                     unsigned long long mcdelay,
+                                     unsigned int flags);
+
+typedef int
 (*virDrvDomainMigrateGetCompressionCache)(virDomainPtr domain,
                                           unsigned long long *cacheSize,
                                           unsigned int flags);
@@ -1339,6 +1344,7 @@ struct _virDriver {
     virDrvDomainMigrateFinish3Params domainMigrateFinish3Params;
     virDrvDomainMigrateConfirm3Params domainMigrateConfirm3Params;
     virDrvConnectGetCPUModelNames connectGetCPUModelNames;
+    virDrvDomainMigrateSetMCDelay domainMigrateSetMCDelay;
 };
 
 

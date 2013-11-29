@@ -2328,6 +2328,11 @@ struct remote_connect_get_cpu_model_names_ret {
         } models;
         int                        ret;
 };
+struct remote_domain_migrate_set_mc_delay_args {
+        remote_nonnull_domain      dom;
+        uint64_t                   mcdelay;
+        u_int                      flags;
+};
 enum remote_procedure {
         REMOTE_PROC_CONNECT_OPEN = 1,
         REMOTE_PROC_CONNECT_CLOSE = 2,
@@ -2641,4 +2646,5 @@ enum remote_procedure {
         REMOTE_PROC_DOMAIN_CREATE_WITH_FILES = 310,
         REMOTE_PROC_DOMAIN_EVENT_DEVICE_REMOVED = 311,
         REMOTE_PROC_CONNECT_GET_CPU_MODEL_NAMES = 312,
+        REMOTE_PROC_DOMAIN_MIGRATE_SET_MCDELAY = 313,
 };

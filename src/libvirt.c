@@ -18866,6 +18866,49 @@ error:
 }
 
 /**
+ * virDomainMigrateSetMCDelay:
+ * @domain: a domain object
+ * @downtime: delay in milliseconds between micro checkpoints
+ * @flags: extra flags; not used yet, so callers should always pass 0
+ *
+ * Returns 0 in case of success, -1 otherwise.
+ */
+int
+virDomainMigrateSetMCDelay(virDomainPtr domain,
+                               unsigned long long mcdelay,
+                               unsigned int flags)
+{
+    virConnectPtr conn;
+
+    VIR_DOMAIN_DEBUG(domain, "mcdelay=%llu, flags=%x", mcdelay, flags);
+
+    virResetLastError();
+
+    if (!VIR_IS_CONNECTED_DOMAIN(domain)) {
+        virLibDomainError(VIR_ERR_INVALID_DOMAIN, __FUNCTION__);
+        virDispatchError(NULL);
+        return -1;
+    }
+
+    conn = domain->conn;
+    if (conn->flags & VIR_CONNECT_RO) {
+        virLibDomainError(VIR_ERR_OPERATION_DENIED, __FUNCTION__);
+        goto error;
+    }
+
+    if (conn->driver->domainMigrateSetMCDelay) {
+        if (conn->driver->domainMigrateSetMCDelay(domain, mcdelay, flags) < 0)
+            goto error;
+        return 0;
+    }
+
+    virLibConnError(VIR_ERR_NO_SUPPORT, __FUNCTION__);
+error:
+    virDispatchError(conn);
+    return -1;
+}
+
+/**
  * virDomainMigrateGetCompressionCache:
  * @domain: a domain object
  * @cacheSize: return value of current size of the cache (in bytes)

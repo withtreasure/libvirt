@@ -386,6 +386,9 @@ int qemuMonitorSetMigrationSpeed(qemuMonitorPtr mon,
 int qemuMonitorSetMigrationDowntime(qemuMonitorPtr mon,
                                     unsigned long long downtime);
 
+int qemuMonitorSetMCDelay(qemuMonitorPtr mon,
+                                    unsigned long long mcdelay);
+
 int qemuMonitorGetMigrationCacheSize(qemuMonitorPtr mon,
                                      unsigned long long *cacheSize);
 int qemuMonitorSetMigrationCacheSize(qemuMonitorPtr mon,
@@ -453,6 +456,9 @@ typedef enum {
     QEMU_MONITOR_MIGRATION_CAPS_XBZRLE,
     QEMU_MONITOR_MIGRATION_CAPS_RDMA_PIN_ALL,
     QEMU_MONITOR_MIGRATION_CAPS_MC,
+    QEMU_MONITOR_MIGRATION_CAPS_MC_NET_DISABLE,
+    QEMU_MONITOR_MIGRATION_CAPS_MC_RDMA_COPY,
+    QEMU_MONITOR_MIGRATION_CAPS_RDMA_KEEPALIVE,
 
     QEMU_MONITOR_MIGRATION_CAPS_LAST
 } qemuMonitorMigrationCaps;

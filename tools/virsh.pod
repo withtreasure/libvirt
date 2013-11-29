@@ -1201,6 +1201,10 @@ Set maximum tolerable downtime for a domain which is being live-migrated to
 another host.  The I<downtime> is a number of milliseconds the guest is allowed
 to be down at the end of live migration.
 
+=item B<migrate-setmcdelay> I<domain> I<mcdelay>
+
+Set number of milliseconds between micro-checkpoints.
+
 =item B<migrate-compcache> I<domain> [I<--size> B<bytes>]
 
 Sets and/or gets size of the cache (in bytes) used for compressing repeatedly

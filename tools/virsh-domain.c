@@ -8534,11 +8534,23 @@ static const vshCmdOptDef opts_migrate[] = {
     },
     {.name = "rdma-pin-all",
      .type = VSH_OT_BOOL,
-     .help = N_("support memory pinning during rdma live migration")
+     .help = N_("support memory pinning during RDMA live migration")
     },
     {.name = "mc",
      .type = VSH_OT_BOOL,
-     .help = N_("support micro-checkpointing")
+     .help = N_("activate micro-checkpointing")
+    },
+    {.name = "mc-net-disable",
+     .type = VSH_OT_BOOL,
+     .help = N_("disable network buffering during micro-checkpointing")
+    },
+    {.name = "mc-rdma-copy",
+     .type = VSH_OT_BOOL,
+     .help = N_("use DMA instead of memcpy during micro-checkpointing")
+    },
+    {.name = "rdma-keepalive",
+     .type = VSH_OT_BOOL,
+     .help = N_("use keepalives during RDMA transfers (failure detection)")
     },
     {.name = "abort-on-error",
      .type = VSH_OT_BOOL,
@@ -8690,6 +8702,15 @@ doMigrate(void *opaque)
     if (vshCommandOptBool(cmd, "mc"))
         flags |= VIR_MIGRATE_MC;
 
+    if (vshCommandOptBool(cmd, "mc-net-disable"))
+        flags |= VIR_MIGRATE_MC_NET_DISABLE;
+
+    if (vshCommandOptBool(cmd, "mc-rdma-copy"))
+        flags |= VIR_MIGRATE_MC_RDMA_COPY;
+
+    if (vshCommandOptBool(cmd, "rdma-keepalive"))
+        flags |= VIR_MIGRATE_RDMA_KEEPALIVE;
+
     if (vshCommandOptBool(cmd, "offline")) {
         flags |= VIR_MIGRATE_OFFLINE;
     }
@@ -8827,6 +8848,19 @@ static const vshCmdInfo info_migrate_setmaxdowntime[] = {
     {.name = NULL}
 };
 
+/*
+ * "migrate-setmcdelay" command
+ */
+static const vshCmdInfo info_migrate_setmcdelay[] = {
+    {.name = "help",
+     .data = N_("set number of milliseconds between micro checkpoints")
+    },
+    {.name = "desc",
+     .data = N_("Set number of milliseconds between one micro checkpoint to the next.")
+    },
+    {.name = NULL}
+};
+
 static const vshCmdOptDef opts_migrate_setmaxdowntime[] = {
     {.name = "domain",
      .type = VSH_OT_DATA,
@@ -8837,6 +8871,20 @@ static const vshCmdOptDef opts_migrate_setmaxdowntime[] = {
      .type = VSH_OT_INT,
      .flags = VSH_OFLAG_REQ,
      .help = N_("maximum tolerable downtime (in milliseconds) for migration")
+    },
+    {.name = NULL}
+};
+
+static const vshCmdOptDef opts_migrate_setmcdelay[] = {
+    {.name = "domain",
+     .type = VSH_OT_DATA,
+     .flags = VSH_OFLAG_REQ,
+     .help = N_("domain name, id or uuid")
+    },
+    {.name = "mcdelay",
+     .type = VSH_OT_INT,
+     .flags = VSH_OFLAG_REQ,
+     .help = N_("number of milliseconds between micro checkpoints")
     },
     {.name = NULL}
 };
@@ -8858,6 +8906,32 @@ cmdMigrateSetMaxDowntime(vshControl *ctl, const vshCmd *cmd)
     }
 
     if (virDomainMigrateSetMaxDowntime(dom, downtime, 0))
+        goto done;
+
+    ret = true;
+
+done:
+    virDomainFree(dom);
+    return ret;
+}
+
+static bool
+cmdMigrateSetMCDelay(vshControl *ctl, const vshCmd *cmd)
+{
+    virDomainPtr dom = NULL;
+    long long mcdelay = 0;
+    bool ret = false;
+
+    if (!(dom = vshCommandOptDomain(ctl, cmd, NULL)))
+        return false;
+
+    if (vshCommandOptLongLong(cmd, "mcdelay", &mcdelay) < 0 ||
+        downtime < 1) {
+        vshError(ctl, "%s", _("migrate: Invalid mcdelay"));
+        goto done;
+    }
+
+    if (virDomainMigrateSetMCDelay(dom, mcdelay, 0))
         goto done;
 
     ret = true;
@@ -10766,6 +10840,12 @@ const vshCmdDef domManagementCmds[] = {
      .handler = cmdMigrateSetMaxDowntime,
      .opts = opts_migrate_setmaxdowntime,
      .info = info_migrate_setmaxdowntime,
+     .flags = 0
+    },
+    {.name = "migrate-setmcdelay",
+     .handler = cmdMigrateSetMCDelay,
+     .opts = opts_migrate_setmcdelay,
+     .info = info_migrate_setmcdelay,
      .flags = 0
     },
     {.name = "migrate-compcache",

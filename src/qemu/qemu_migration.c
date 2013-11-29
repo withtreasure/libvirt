@@ -1606,6 +1606,126 @@ cleanup:
 }
 
 static int
+qemuMigrationSetMCNetDisable(virQEMUDriverPtr driver,
+                            virDomainObjPtr vm,
+                            enum qemuDomainAsyncJob job)
+{
+    qemuDomainObjPrivatePtr priv = vm->privateData;
+    int ret;
+
+    if (qemuDomainObjEnterMonitorAsync(driver, vm, job) < 0)
+        return -1;
+
+    ret = qemuMonitorGetMigrationCapability(
+                priv->mon,
+                QEMU_MONITOR_MIGRATION_CAPS_MC_NET_DISABLE);
+
+    if (ret < 0) {
+        goto cleanup;
+    } else if (ret == 0) {
+        if (job == QEMU_ASYNC_JOB_MIGRATION_IN) {
+            virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s",
+                           _("disable network buffering is not supported by "
+                             "target QEMU binary"));
+        } else {
+            virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s",
+                           _("disable network buffering is not supported by "
+                             "source QEMU binary"));
+        }
+        ret = -1;
+        goto cleanup;
+    }
+
+    ret = qemuMonitorSetMigrationCapability(
+                priv->mon,
+                QEMU_MONITOR_MIGRATION_CAPS_MC_NET_DISABLE);
+
+cleanup:
+    qemuDomainObjExitMonitor(driver, vm);
+    return ret;
+}
+
+static int
+qemuMigrationSetMCRDMACopy(virQEMUDriverPtr driver,
+                            virDomainObjPtr vm,
+                            enum qemuDomainAsyncJob job)
+{
+    qemuDomainObjPrivatePtr priv = vm->privateData;
+    int ret;
+
+    if (qemuDomainObjEnterMonitorAsync(driver, vm, job) < 0)
+        return -1;
+
+    ret = qemuMonitorGetMigrationCapability(
+                priv->mon,
+                QEMU_MONITOR_MIGRATION_CAPS_MC_RDMA_COPY);
+
+    if (ret < 0) {
+        goto cleanup;
+    } else if (ret == 0) {
+        if (job == QEMU_ASYNC_JOB_MIGRATION_IN) {
+            virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s",
+                           _("rdma memcpy is not supported by "
+                             "target QEMU binary"));
+        } else {
+            virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s",
+                           _("rdma memcpy is not supported by "
+                             "source QEMU binary"));
+        }
+        ret = -1;
+        goto cleanup;
+    }
+
+    ret = qemuMonitorSetMigrationCapability(
+                priv->mon,
+                QEMU_MONITOR_MIGRATION_CAPS_MC_RDMA_COPY);
+
+cleanup:
+    qemuDomainObjExitMonitor(driver, vm);
+    return ret;
+}
+
+static int
+qemuMigrationSetRDMAKeepalive(virQEMUDriverPtr driver,
+                            virDomainObjPtr vm,
+                            enum qemuDomainAsyncJob job)
+{
+    qemuDomainObjPrivatePtr priv = vm->privateData;
+    int ret;
+
+    if (qemuDomainObjEnterMonitorAsync(driver, vm, job) < 0)
+        return -1;
+
+    ret = qemuMonitorGetMigrationCapability(
+                priv->mon,
+                QEMU_MONITOR_MIGRATION_CAPS_RDMA_KEEPALIVE);
+
+    if (ret < 0) {
+        goto cleanup;
+    } else if (ret == 0) {
+        if (job == QEMU_ASYNC_JOB_MIGRATION_IN) {
+            virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s",
+                           _("rdma keepalive is not supported by "
+                             "target QEMU binary"));
+        } else {
+            virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s",
+                           _("rdma keepalive is not supported by "
+                             "source QEMU binary"));
+        }
+        ret = -1;
+        goto cleanup;
+    }
+
+    ret = qemuMonitorSetMigrationCapability(
+                priv->mon,
+                QEMU_MONITOR_MIGRATION_CAPS_RDMA_KEEPALIVE);
+
+cleanup:
+    qemuDomainObjExitMonitor(driver, vm);
+    return ret;
+}
+
+static int
 qemuMigrationSetMC(virQEMUDriverPtr driver,
                             virDomainObjPtr vm,
                             enum qemuDomainAsyncJob job)
@@ -2504,6 +2624,21 @@ qemuMigrationPrepareAny(virQEMUDriverPtr driver,
                                     QEMU_ASYNC_JOB_MIGRATION_IN) < 0)
         goto stop;
 
+    if (flags & VIR_MIGRATE_MC_NET_DISABLE &&
+        qemuMigrationSetMCNetDisable(driver, vm,
+                                    QEMU_ASYNC_JOB_MIGRATION_IN) < 0)
+        goto stop;
+
+    if (flags & VIR_MIGRATE_MC_RDMA_COPY &&
+        qemuMigrationSetMCRDMACopy(driver, vm,
+                                    QEMU_ASYNC_JOB_MIGRATION_IN) < 0)
+        goto stop;
+
+    if (flags & VIR_MIGRATE_RDMA_KEEPALIVE &&
+        qemuMigrationSetRDMAKeepalive(driver, vm,
+                                    QEMU_ASYNC_JOB_MIGRATION_IN) < 0)
+        goto stop;
+
     if (strstr(protocol, "rdma")) {
         unsigned long long memKB = vm->def->mem.hard_limit ?
                                    vm->def->mem.hard_limit :
@@ -3324,6 +3459,21 @@ qemuMigrationRun(virQEMUDriverPtr driver,
 
     if (flags & VIR_MIGRATE_MC &&
         qemuMigrationSetMC(driver, vm,
+                                    QEMU_ASYNC_JOB_MIGRATION_OUT) < 0)
+        goto cleanup;
+
+    if (flags & VIR_MIGRATE_MC_NET_DISABLE &&
+        qemuMigrationSetMCNetDisable(driver, vm,
+                                    QEMU_ASYNC_JOB_MIGRATION_OUT) < 0)
+        goto cleanup;
+
+    if (flags & VIR_MIGRATE_MC_RDMA_COPY &&
+        qemuMigrationSetMCRDMACopy(driver, vm,
+                                    QEMU_ASYNC_JOB_MIGRATION_OUT) < 0)
+        goto cleanup;
+
+    if (flags & VIR_MIGRATE_RDMA_KEEPALIVE &&
+        qemuMigrationSetRDMAKeepalive(driver, vm,
                                     QEMU_ASYNC_JOB_MIGRATION_OUT) < 0)
         goto cleanup;
 
