@@ -2045,7 +2045,7 @@ int qemuMonitorSetMigrationDowntime(qemuMonitorPtr mon,
     return ret;
 }
 
-int qemuMonitorSetMCDelay(qemuMonitorPtr mon,
+int qemuMonitorSetMcDelay(qemuMonitorPtr mon,
                                     unsigned long long mcdelay)
 {
     int ret;
@@ -2058,9 +2058,9 @@ int qemuMonitorSetMCDelay(qemuMonitorPtr mon,
     }
 
     if (mon->json)
-        ret = qemuMonitorJSONSetMCDelay(mon, mcdelay);
+        ret = qemuMonitorJSONSetMcDelay(mon, mcdelay);
     else
-        ret = qemuMonitorTextSetMCDelay(mon, mcdelay);
+        ret = qemuMonitorTextSetMcDelay(mon, mcdelay);
     return ret;
 }
 

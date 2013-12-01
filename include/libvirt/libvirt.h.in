@@ -1321,7 +1321,7 @@ int virDomainMigrateSetMaxDowntime (virDomainPtr domain,
                                     unsigned long long downtime,
                                     unsigned int flags);
 
-int virDomainMigrateSetMCDelay (virDomainPtr domain,
+int virDomainMigrateSetMcDelay (virDomainPtr domain,
                                     unsigned long long mcdelay,
                                     unsigned int flags);
 

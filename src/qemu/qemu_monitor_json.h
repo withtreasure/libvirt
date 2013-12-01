@@ -125,7 +125,7 @@ int qemuMonitorJSONSetMigrationSpeed(qemuMonitorPtr mon,
 int qemuMonitorJSONSetMigrationDowntime(qemuMonitorPtr mon,
                                         unsigned long long downtime);
 
-int qemuMonitorJSONSetMCDelay(qemuMonitorPtr mon,
+int qemuMonitorJSONSetMcDelay(qemuMonitorPtr mon,
                                         unsigned long long mcdelay);
 
 int qemuMonitorJSONGetMigrationCacheSize(qemuMonitorPtr mon,

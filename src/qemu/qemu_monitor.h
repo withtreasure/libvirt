@@ -386,7 +386,7 @@ int qemuMonitorSetMigrationSpeed(qemuMonitorPtr mon,
 int qemuMonitorSetMigrationDowntime(qemuMonitorPtr mon,
                                     unsigned long long downtime);
 
-int qemuMonitorSetMCDelay(qemuMonitorPtr mon,
+int qemuMonitorSetMcDelay(qemuMonitorPtr mon,
                                     unsigned long long mcdelay);
 
 int qemuMonitorGetMigrationCacheSize(qemuMonitorPtr mon,

@@ -2287,7 +2287,7 @@ int qemuMonitorJSONSetMigrationDowntime(qemuMonitorPtr mon,
     return ret;
 }
 
-int qemuMonitorJSONSetMCDelay(qemuMonitorPtr mon,
+int qemuMonitorJSONSetMcDelay(qemuMonitorPtr mon,
                                         unsigned long long mcdelay)
 {
     int ret;
@@ -2295,7 +2295,7 @@ int qemuMonitorJSONSetMCDelay(qemuMonitorPtr mon,
     virJSONValuePtr reply = NULL;
 
     cmd = qemuMonitorJSONMakeCommand("migrate-set-mc-delay",
-                                     "d:value", mcdelay,
+                                     "U:value", mcdelay,
                                      NULL);
     if (!cmd)
         return -1;

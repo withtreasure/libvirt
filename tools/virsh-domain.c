@@ -8916,7 +8916,7 @@ done:
 }
 
 static bool
-cmdMigrateSetMCDelay(vshControl *ctl, const vshCmd *cmd)
+cmdMigrateSetMcDelay(vshControl *ctl, const vshCmd *cmd)
 {
     virDomainPtr dom = NULL;
     long long mcdelay = 0;
@@ -8926,12 +8926,12 @@ cmdMigrateSetMCDelay(vshControl *ctl, const vshCmd *cmd)
         return false;
 
     if (vshCommandOptLongLong(cmd, "mcdelay", &mcdelay) < 0 ||
-        downtime < 1) {
+        mcdelay < 1) {
         vshError(ctl, "%s", _("migrate: Invalid mcdelay"));
         goto done;
     }
 
-    if (virDomainMigrateSetMCDelay(dom, mcdelay, 0))
+    if (virDomainMigrateSetMcDelay(dom, mcdelay, 0))
         goto done;
 
     ret = true;
@@ -10843,7 +10843,7 @@ const vshCmdDef domManagementCmds[] = {
      .flags = 0
     },
     {.name = "migrate-setmcdelay",
-     .handler = cmdMigrateSetMCDelay,
+     .handler = cmdMigrateSetMcDelay,
      .opts = opts_migrate_setmcdelay,
      .info = info_migrate_setmcdelay,
      .flags = 0

@@ -1409,7 +1409,7 @@ cleanup:
     return ret;
 }
 
-int qemuMonitorTextSetMCDelay(qemuMonitorPtr mon,
+int qemuMonitorTextSetMcDelay(qemuMonitorPtr mon,
                                         unsigned long long mcdelay)
 {
     char *cmd = NULL;

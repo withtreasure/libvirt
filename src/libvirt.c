@@ -18866,15 +18866,17 @@ error:
 }
 
 /**
- * virDomainMigrateSetMCDelay:
+ * virDomainMigrateSetMcDelay:
  * @domain: a domain object
- * @downtime: delay in milliseconds between micro checkpoints
+ * @mcdelay: delay in milliseconds between micro checkpoints
  * @flags: extra flags; not used yet, so callers should always pass 0
+ *
+ * Delay in milliseconds between micro checkpoints. 
  *
  * Returns 0 in case of success, -1 otherwise.
  */
 int
-virDomainMigrateSetMCDelay(virDomainPtr domain,
+virDomainMigrateSetMcDelay(virDomainPtr domain,
                                unsigned long long mcdelay,
                                unsigned int flags)
 {
@@ -18896,8 +18898,8 @@ virDomainMigrateSetMCDelay(virDomainPtr domain,
         goto error;
     }
 
-    if (conn->driver->domainMigrateSetMCDelay) {
-        if (conn->driver->domainMigrateSetMCDelay(domain, mcdelay, flags) < 0)
+    if (conn->driver->domainMigrateSetMcDelay) {
+        if (conn->driver->domainMigrateSetMcDelay(domain, mcdelay, flags) < 0)
             goto error;
         return 0;
     }

@@ -116,7 +116,7 @@ int qemuMonitorTextSetMigrationSpeed(qemuMonitorPtr mon,
 int qemuMonitorTextSetMigrationDowntime(qemuMonitorPtr mon,
                                         unsigned long long downtime);
 
-int qemuMonitorTextSetMCDelay(qemuMonitorPtr mon,
+int qemuMonitorTextSetMcDelay(qemuMonitorPtr mon,
                                         unsigned long long mcdelay);
 
 int qemuMonitorTextGetMigrationStatus(qemuMonitorPtr mon,
