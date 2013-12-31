@@ -2402,7 +2402,8 @@ qemuMonitorJSONGetMigrationStatusReply(virJSONValuePtr reply,
     }
 
     virJSONValueObjectGetNumberUlong(ret, "total-time", &status->total_time);
-    if (status->status == QEMU_MONITOR_MIGRATION_STATUS_COMPLETED) {
+    if (status->status == QEMU_MONITOR_MIGRATION_STATUS_COMPLETED ||
+        status->status == QEMU_MONITOR_MIGRATION_STATUS_CHECKPOINTING) {
         rc = virJSONValueObjectGetNumberUlong(ret, "downtime",
                                               &status->downtime);
     } else {
@@ -2412,7 +2413,8 @@ qemuMonitorJSONGetMigrationStatusReply(virJSONValuePtr reply,
     if (rc == 0)
         status->downtime_set = true;
 
-    if (status->status == QEMU_MONITOR_MIGRATION_STATUS_ACTIVE) {
+    if (status->status == QEMU_MONITOR_MIGRATION_STATUS_ACTIVE ||
+        status->status == QEMU_MONITOR_MIGRATION_STATUS_CHECKPOINTING) {
         virJSONValuePtr ram = virJSONValueObjectGet(ret, "ram");
         if (!ram) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -2450,12 +2452,12 @@ qemuMonitorJSONGetMigrationStatusReply(virJSONValuePtr reply,
                                          &status->ram_normal_bytes);
 
         if (virJSONValueObjectGetNumberDouble(ram, "mbps",
-                                              &status->mbps) < 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("migration was active, but RAM 'mbps' "
-                             "data was missing"));
-            return -1;
-        }
+                                              &status->mbps) == 0)
+            status->mbps_set = true;
+
+        if (virJSONValueObjectGetNumberUlong(ret, "setup-time",
+                                              &status->setup_time) == 0)
+            status->setup_time_set = true;
 
         virJSONValuePtr disk = virJSONValueObjectGet(ret, "disk");
         if (disk) {
@@ -2536,15 +2538,64 @@ qemuMonitorJSONGetMigrationStatusReply(virJSONValuePtr reply,
             }
         }
 
-        rc = virJSONValueObjectGetNumberUlong(ret, "setup-time",
-                                              &status->setup_time);
+        virJSONValuePtr mc = virJSONValueObjectGet(ret, "mc");
+        if (mc) {
+            status->mc_set = true;
 
-        if (rc < 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("migration was active, but no setup-time was set"));
-            return -1;
+            rc = virJSONValueObjectGetNumberDouble(mc, "copy-mbps",
+                                                  &status->mc_copy_mbps);
+            if (rc < 0) {
+                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                               _("MC is active, but 'copy-mbps' data "
+                                 "was missing"));
+                return -1;
+            }
+
+            rc = virJSONValueObjectGetNumberUlong(mc, "log-dirty-time",
+                                                  &status->mc_log_dirty_time);
+            if (rc < 0) {
+                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                               _("MC is active, but 'log-dirty-time' data "
+                                 "was missing"));
+                return -1;
+            }
+
+            rc = virJSONValueObjectGetNumberUlong(mc, "ram-copy-time",
+                                                  &status->mc_ram_copy_time);
+            if (rc < 0) {
+                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                               _("MC is active, but 'ram-copy-time' data "
+                                 "was missing"));
+                return -1;
+            }
+
+            rc = virJSONValueObjectGetNumberUlong(mc, "migration-bitmap-time",
+                                                  &status->mc_migration_bitmap_time);
+            if (rc < 0) {
+                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                               _("MC is active, but 'migraiton-bitmap-time' data "
+                                 "was missing"));
+                return -1;
+            }
+
+            rc = virJSONValueObjectGetNumberUlong(mc, "xmit-time",
+                                                  &status->mc_xmit_time);
+            if (rc < 0) {
+                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                               _("MC is active, but 'xmit-time' data "
+                                 "was missing"));
+                return -1;
+            }
+
+            rc = virJSONValueObjectGetNumberUlong(mc, "checkpoints",
+                                                  &status->mc_checkpoints);
+            if (rc < 0) {
+                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                               _("MC is active, but 'checkpoints' data "
+                                 "was missing"));
+                return -1;
+            }
         }
-
     }
 
     return 0;

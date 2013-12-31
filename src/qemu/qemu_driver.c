@@ -11078,6 +11078,20 @@ qemuDomainGetJobStats(virDomainPtr dom,
             goto cleanup;
     }
 
+    if (priv->job.status.mbps_set) {
+        if (virTypedParamsAddDouble(&par, &npar, &maxpar,
+                                    VIR_DOMAIN_JOB_MBPS,
+                                    priv->job.status.mbps) < 0)
+            goto cleanup;
+    }
+
+    if (priv->job.status.setup_time_set) {
+        if (virTypedParamsAddULLong(&par, &npar, &maxpar,
+                                    VIR_DOMAIN_JOB_SETUP_TIME,
+                                    priv->job.status.setup_time) < 0)
+            goto cleanup;
+    }
+
     if (virTypedParamsAddULLong(&par, &npar, &maxpar,
                                 VIR_DOMAIN_JOB_DISK_TOTAL,
                                 priv->job.info.fileTotal) < 0 ||
@@ -11105,6 +11119,28 @@ qemuDomainGetJobStats(virDomainPtr dom,
             virTypedParamsAddULLong(&par, &npar, &maxpar,
                                     VIR_DOMAIN_JOB_COMPRESSION_OVERFLOW,
                                     priv->job.status.xbzrle_overflow) < 0)
+            goto cleanup;
+    }
+
+    if (priv->job.status.mc_set) {
+        if (virTypedParamsAddDouble(&par, &npar, &maxpar,
+                                    VIR_DOMAIN_JOB_MC_COPY_MBPS,
+                                    priv->job.status.mc_copy_mbps) < 0 ||
+            virTypedParamsAddULLong(&par, &npar, &maxpar,
+                                    VIR_DOMAIN_JOB_MC_LOG_DIRTY_TIME,
+                                    priv->job.status.mc_log_dirty_time) < 0 ||
+            virTypedParamsAddULLong(&par, &npar, &maxpar,
+                                    VIR_DOMAIN_JOB_MC_RAM_COPY_TIME,
+                                    priv->job.status.mc_ram_copy_time) < 0 ||
+            virTypedParamsAddULLong(&par, &npar, &maxpar,
+                                    VIR_DOMAIN_JOB_MC_MIGRATION_BITMAP_TIME,
+                                    priv->job.status.mc_migration_bitmap_time) < 0 ||
+            virTypedParamsAddULLong(&par, &npar, &maxpar,
+                                    VIR_DOMAIN_JOB_MC_XMIT_TIME,
+                                    priv->job.status.mc_xmit_time) < 0 ||
+            virTypedParamsAddULLong(&par, &npar, &maxpar,
+                                    VIR_DOMAIN_JOB_MC_CHECKPOINTS,
+                                    priv->job.status.mc_checkpoints) < 0)
             goto cleanup;
     }
 

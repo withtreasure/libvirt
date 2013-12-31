@@ -416,15 +416,18 @@ struct _qemuMonitorMigrationStatus {
     /* total or expected depending on status */
     bool downtime_set;
     unsigned long long downtime;
+
     /* 
      * Duration of the QEMU 'setup' state.
      * for RDMA, this may be on the order of several seconds
      * if pinning support is requested before the migration begins.
      */
+    bool setup_time_set;
     unsigned long long setup_time;
     /*
      * Migration throughput in Mbps.
      */
+    bool mbps_set;
     double mbps;
 
     unsigned long long ram_transferred;
@@ -445,6 +448,17 @@ struct _qemuMonitorMigrationStatus {
     unsigned long long xbzrle_pages;
     unsigned long long xbzrle_cache_miss;
     unsigned long long xbzrle_overflow;
+
+    /*
+     * Micro-Checkpointing statistics.
+     */
+    bool mc_set;
+    double mc_copy_mbps;
+    unsigned long long mc_log_dirty_time;
+    unsigned long long mc_ram_copy_time;
+    unsigned long long mc_migration_bitmap_time;
+    unsigned long long mc_xmit_time;
+    unsigned long long mc_checkpoints;
 };
 
 int qemuMonitorGetMigrationStatus(qemuMonitorPtr mon,
