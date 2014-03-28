@@ -40,6 +40,7 @@
      | VIR_MIGRATE_OFFLINE                      \
      | VIR_MIGRATE_COMPRESSED                   \
      | VIR_MIGRATE_ABORT_ON_ERROR               \
+     | VIR_MIGRATE_AUTO_CONVERGE                \
      | VIR_MIGRATE_RDMA_PIN_ALL                 \
      | VIR_MIGRATE_MC                           \
      | VIR_MIGRATE_MC_NET_DISABLE               \
